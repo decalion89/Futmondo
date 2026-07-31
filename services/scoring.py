@@ -132,27 +132,38 @@ SEASON_PROGRESS_FOR_DEAD_RUBBER = 0.7  # a partir de qué % de jornadas jugadas 
 
 
 def team_motivation_factor(standings_row, total_games=SEASON_TOTAL_GAMES):
-    """¿Se juega algo el equipo? Con la clasificación (que ya pedimos para
-    el calendario) miramos si está en pelea de título/Europa o de descenso
-    (motivación alta) o si está instalado en la zona media sin nada en juego
-    ya avanzada la temporada (motivación algo más baja: son los clásicos
-    'partidos de trámite' que rinden menos, sobre todo defensivamente).
+    """¿Se juega algo el equipo? API-Football suele incluir en la
+    clasificación un campo `description` con la lectura oficial del
+    proveedor sobre esa posición (p.ej. "Promotion - Champions League",
+    "Relegation - LaLiga 2"). Si existe, es más fiable que adivinarlo por
+    rango de posición, así que se usa primero; si viene vacío (zona media
+    sin etiqueta) o no está disponible, caemos al rango de posición como
+    aproximación.
 
-    Es una aproximación por posición en tabla, no un modelo de probabilidad
-    de descenso/Europa real — pero capta el caso más claro: un equipo
-    14º a falta de 3 jornadas no se juega nada.
+    Motivación algo más baja = partido de trámite avanzada la temporada
+    (rinde menos, sobre todo defensivamente); un equipo 14º a falta de 3
+    jornadas no se juega nada.
     """
     if not standings_row:
         return 1.0
-    rank = standings_row.get("rank")
     played = (standings_row.get("all") or {}).get("played")
-    if rank is None or not played:
+    if not played:
         return 1.0
-    if not (LOW_STAKES_RANK_RANGE[0] <= rank <= LOW_STAKES_RANK_RANGE[1]):
-        return 1.0  # pelea título/Europa o pelea el descenso
     season_progress = played / total_games
     if season_progress < SEASON_PROGRESS_FOR_DEAD_RUBBER:
         return 1.0  # aún puede cambiar mucho, no lo tratamos como trámite
+
+    if "description" in standings_row:
+        # La clave existe en la respuesta real de la API: un valor vacío o
+        # `null` ahí SÍ significa "sin etiqueta de zona", no "dato ausente".
+        description = standings_row.get("description")
+        return 1.0 if description else 0.93
+
+    rank = standings_row.get("rank")
+    if rank is None:
+        return 1.0
+    if not (LOW_STAKES_RANK_RANGE[0] <= rank <= LOW_STAKES_RANK_RANGE[1]):
+        return 1.0  # pelea título/Europa o pelea el descenso
     return 0.93
 
 

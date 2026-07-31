@@ -225,6 +225,19 @@ def test_team_motivation_defaults_without_data():
     assert scoring.team_motivation_factor({}) == 1.0
 
 
+def test_team_motivation_trusts_provider_description_over_rank():
+    # El campo `description` (si existe) manda sobre el rango de posición:
+    # aquí el rank 10 caería en "zona media" por rango, pero la API dice
+    # que sigue peleando Europa, así que motivación alta.
+    row_with_europe_tag = {"rank": 10, "all": {"played": 32}, "description": "Europa League"}
+    assert scoring.team_motivation_factor(row_with_europe_tag) == 1.0
+
+    # Y al revés: description vacío/null confirma que no se juega nada,
+    # aunque el rank (7) hubiera parecido zona alta por rango.
+    row_confirmed_nothing = {"rank": 7, "all": {"played": 32}, "description": None}
+    assert scoring.team_motivation_factor(row_confirmed_nothing) < 1.0
+
+
 def test_card_suspension_risk():
     assert scoring.card_suspension_risk(4) is True   # a una amarilla de la 5ª
     assert scoring.card_suspension_risk(9) is True   # a una del segundo ciclo
