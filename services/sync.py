@@ -1,8 +1,8 @@
 """Cruza tu plantilla guardada con datos reales de API-Football:
-lesiones, sanciones, próximo rival y forma reciente.
+lesiones, sanciones, calendario y forma reciente.
 """
 import datetime
-from services import store
+from services import store, scoring
 from services.api_football import ApiFootballClient, ApiFootballError
 
 
@@ -22,25 +22,9 @@ def _resolve_player(client, player):
     return pid, team_id
 
 
-def _compute_score(position, rating, starter_rate, goals_against_avg, goals_for_avg):
-    """Puntuación heurística para orientar capitán/alineación: forma reciente
-    ajustada por lo favorable que sea el rival según la posición, y penalizada
-    si el jugador no suele ser titular. No es una predicción exacta, es una
-    guía relativa entre tus propios jugadores disponibles."""
-    base = rating if rating is not None else 6.0
-    fixture_factor = 1.0
-    if position in ("DEL", "CEN"):
-        if goals_against_avg is not None:
-            fixture_factor = 0.85 + min(goals_against_avg, 2.5) * 0.15
-    elif position in ("DEF", "POR"):
-        if goals_for_avg is not None:
-            fixture_factor = 1.15 - min(goals_for_avg, 2.5) * 0.15
-    reliability = 0.7 + 0.3 * (starter_rate if starter_rate is not None else 0.5)
-    return round(base * fixture_factor * reliability, 2)
-
-
 def sync_all():
-    """Actualiza el cache de estado (lesión/sanción/próximo rival/forma) para toda la plantilla.
+    """Actualiza el cache de estado (lesión/sanción/calendario/forma/valor)
+    para toda la plantilla.
 
     Devuelve (resultados, errores) sin lanzar excepción si un jugador falla,
     para que un fallo puntual no tumbe la sincronización completa.
@@ -83,20 +67,9 @@ def sync_all():
                         status = "lesionado"
                     break
 
-            fixture = client.get_next_fixture(team_id)
-            rival, is_home, fixture_date = None, None, None
-            goals_against_avg, goals_for_avg = None, None
-            if fixture:
-                teams = fixture["teams"]
-                is_home = teams["home"]["id"] == team_id
-                rival_team = teams["away"] if is_home else teams["home"]
-                rival = rival_team["name"]
-                fixture_date = fixture["fixture"]["date"]
-                rival_row = standings.get(rival_team["id"])
-                if rival_row:
-                    played = max(rival_row["all"]["played"], 1)
-                    goals_against_avg = round(rival_row["all"]["goals"]["against"] / played, 2)
-                    goals_for_avg = round(rival_row["all"]["goals"]["for"] / played, 2)
+            fixtures = client.get_next_fixtures(team_id, scoring.HORIZON)
+            swing = scoring.fixture_swing(fixtures, team_id, standings)
+            next_fixture = swing["fixtures"][0] if swing["fixtures"] else None
 
             rating, starter_rate = None, None
             try:
@@ -110,17 +83,20 @@ def sync_all():
             except (ApiFootballError, TypeError, ValueError):
                 pass
 
-            score = _compute_score(player["position"], rating, starter_rate, goals_against_avg, goals_for_avg)
+            score = scoring.player_score(player["position"], rating, starter_rate, swing) if status == "ok" else None
+            value = scoring.value_for_money(score, player.get("price")) if status == "ok" else None
 
             cache[player["id"]] = {
                 "status": status,
                 "reason": reason,
-                "rival": rival,
-                "is_home": is_home,
-                "fixture_date": fixture_date,
-                "fixture_difficulty": goals_against_avg,
+                "rival": next_fixture["rival"] if next_fixture else None,
+                "is_home": next_fixture["is_home"] if next_fixture else None,
+                "fixture_date": next_fixture["date"] if next_fixture else None,
+                "fixture_difficulty": swing["avg_goals_against_rivals"],
+                "next_fixtures": swing["fixtures"],
                 "rating": rating,
-                "score": score if status == "ok" else None,
+                "score": score,
+                "value": value,
                 "updated_at": datetime.datetime.utcnow().isoformat(),
             }
         except ApiFootballError as e:

@@ -66,14 +66,15 @@ class ApiFootballClient:
             "team": team_id,
         })
 
-    def get_next_fixture(self, team_id):
-        fixtures = self._get("fixtures", {
+    def get_next_fixtures(self, team_id, count=5):
+        """Próximos `count` partidos de liga de un equipo (para medir la
+        racha de calendario, no solo el partido inmediato)."""
+        return self._get("fixtures", {
             "team": team_id,
-            "next": 1,
+            "next": count,
             "league": self.league_id,
             "season": self.season,
         })
-        return fixtures[0] if fixtures else None
 
     def get_player_statistics(self, player_id, team_id=None):
         """Estadísticas de la temporada para un jugador (rating medio, titularidades...)."""

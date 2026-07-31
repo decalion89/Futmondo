@@ -10,6 +10,7 @@ from services import store
 from services.sync import sync_all
 from services.api_football import ApiFootballClient
 from services.futmondo import FutmondoClient, FutmondoError, normalize_roster
+from services import transfers as transfers_service
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET", "futmondo-local-dev")
@@ -85,6 +86,42 @@ def market():
         error=error,
         futmondo_enabled=client.enabled,
         raw_debug=raw if not listings else None,
+    )
+
+
+@app.route("/fichajes")
+def transfers():
+    futmondo_client = FutmondoClient()
+    api_enabled = ApiFootballClient().enabled
+    errors = []
+    listings = []
+
+    if futmondo_client.enabled:
+        try:
+            raw = futmondo_client.get_market()
+            listings = normalize_roster(raw)
+        except FutmondoError as e:
+            errors.append(str(e))
+
+    ranked = []
+    if listings and api_enabled:
+        ranked, rank_errors = transfers_service.rank_market(listings)
+        errors.extend(rank_errors)
+
+    squad = store.load_squad()
+    status_cache = store.load_status_cache()
+    unavailable, worst_value = ([], [])
+    if api_enabled:
+        unavailable, worst_value = transfers_service.sell_candidates(squad, status_cache)
+
+    return render_template(
+        "transfers.html",
+        ranked=ranked,
+        unavailable=unavailable,
+        worst_value=worst_value,
+        errors=errors,
+        futmondo_enabled=futmondo_client.enabled,
+        api_enabled=api_enabled,
     )
 
 

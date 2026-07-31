@@ -46,6 +46,11 @@ tr.status-duda { background: #fff8d6; }
 
 .banner.captain { background: #fff4d6; border-color: #e8c96a; font-weight: 600; }
 
+.hint { color: #555; font-size: 0.9rem; max-width: 700px; }
+tr.highlight { background: #e3f8e3; }
+h2 { margin-top: 2rem; }
+h3 { margin-top: 1.5rem; }
+
 .flashes { list-style: none; padding: 0; margin: 1rem 0; }
 .flashes li { padding: 0.5rem 0.75rem; border-radius: 6px; margin-bottom: 0.4rem; }
 .flashes li.ok { background: #e3f8e3; }

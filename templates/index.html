@@ -21,6 +21,7 @@
     <h1>Mi plantilla</h1>
     <div class="actions">
       <a href="{{ url_for('market') }}">Ver mercado</a>
+      <a href="{{ url_for('transfers') }}">Fichajes recomendados</a>
       <form action="{{ url_for('import_futmondo') }}" method="post">
         <button type="submit" {{ 'disabled' if not futmondo_enabled }}>Importar plantilla real de Futmondo</button>
       </form>
@@ -73,6 +74,7 @@
         <th>Próximo rival</th>
         <th>Dificultad rival</th>
         <th title="Forma reciente ajustada por rival y titularidad">Puntuación</th>
+        <th title="Puntuación por cada millón de € invertido">Valor</th>
         <th></th>
       </tr>
     </thead>
@@ -104,6 +106,7 @@
           {% else %} — {% endif %}
         </td>
         <td>{{ p.get('score') if p.get('score') is not none else '—' }}</td>
+        <td>{{ p.get('value') if p.get('value') is not none else '—' }}</td>
         <td>
           <form action="{{ url_for('remove_player', player_id=p.id) }}" method="post" onsubmit="return confirm('¿Eliminar {{ p.name }}?')">
             <button type="submit" class="danger">Eliminar</button>

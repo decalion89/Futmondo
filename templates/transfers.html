@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fichajes - Futmondo Manager</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+  <meta name="theme-color" content="#1e7a34">
+</head>
+<body>
+  <header>
+    <h1>Fichajes: riesgo/beneficio</h1>
+    <a href="{{ url_for('dashboard') }}">&larr; Volver a mi plantilla</a>
+  </header>
+
+  {% if not futmondo_enabled %}
+    <div class="banner">Configura <code>FUTMONDO_TOKEN</code>/<code>FUTMONDO_USER_ID</code> para ver el mercado real (ver README).</div>
+  {% endif %}
+  {% if not api_enabled %}
+    <div class="banner">Configura <code>API_FOOTBALL_KEY</code> para poder puntuar a los jugadores del mercado y de tu plantilla.</div>
+  {% endif %}
+  {% for e in errors %}
+    <div class="banner">{{ e }}</div>
+  {% endfor %}
+
+  <h2>Comprar: mejor relación puntos/precio en el mercado ahora mismo</h2>
+  <p class="hint">
+    Puntuación = forma reciente ajustada por lo favorable que sea el calendario de sus
+    próximos {{ 5 }} partidos según su posición. Valor = puntuación por cada millón de €.
+    Cuanto más alto el valor, más rentable el fichaje.
+  </p>
+  <table>
+    <thead>
+      <tr>
+        <th>Jugador</th><th>Pos.</th><th>Equipo</th><th>Precio</th>
+        <th>Rating</th><th>Puntuación</th><th>Valor (pts/M€)</th><th>Próximo rival</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in ranked %}
+      <tr class="{{ 'highlight' if loop.index <= 3 }}">
+        <td>{{ p.name }}</td>
+        <td>{{ p.position }}</td>
+        <td>{{ p.team }}</td>
+        <td>{{ p.price or '-' }}</td>
+        <td>{{ p.rating or '—' }}</td>
+        <td>{{ p.score or '—' }}</td>
+        <td><strong>{{ p.value if p.value is not none else '—' }}</strong></td>
+        <td>{{ p.next_rival or '—' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8">Sin candidatos analizados todavía (revisa que haya jugadores en el mercado y las claves configuradas).</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Vender: prioridad por riesgo</h2>
+  <p class="hint">Primero los que ahora mismo no suman (lesión/sanción/duda) — no tiene sentido pagarles clausula/mantenerlos si tienes mejor opción. Luego, de entre tus jugadores disponibles, los de peor relación puntos/precio.</p>
+
+  {% if unavailable %}
+    <h3>No disponibles ahora mismo</h3>
+    <table>
+      <thead><tr><th>Jugador</th><th>Pos.</th><th>Estado</th><th>Motivo</th></tr></thead>
+      <tbody>
+        {% for p in unavailable %}
+        <tr class="status-{{ p.status }}">
+          <td>{{ p.name }}</td>
+          <td>{{ p.position }}</td>
+          <td>{{ p.status }}</td>
+          <td>{{ p.reason or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+
+  {% if worst_value %}
+    <h3>Peor relación puntos/precio en tu plantilla</h3>
+    <table>
+      <thead><tr><th>Jugador</th><th>Pos.</th><th>Precio</th><th>Puntuación</th><th>Valor (pts/M€)</th></tr></thead>
+      <tbody>
+        {% for p in worst_value %}
+        <tr>
+          <td>{{ p.name }}</td>
+          <td>{{ p.position }}</td>
+          <td>{{ p.price or '-' }}</td>
+          <td>{{ p.score or '—' }}</td>
+          <td>{{ p.value if p.value is not none else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+</body>
+</html>
