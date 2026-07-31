@@ -47,6 +47,8 @@ tr.status-duda { background: #fff8d6; }
 .banner.captain { background: #fff4d6; border-color: #e8c96a; font-weight: 600; }
 
 .hint { color: #555; font-size: 0.9rem; max-width: 700px; }
+.tag-ok { color: #1e7a34; font-size: 0.85rem; }
+.tag-warn { color: #b3541e; font-size: 0.85rem; }
 tr.highlight { background: #e3f8e3; }
 h2 { margin-top: 2rem; }
 h3 { margin-top: 1.5rem; }

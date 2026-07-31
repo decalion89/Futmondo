@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from services import store
+from services import store, scoring
 from services.sync import sync_all
 from services.api_football import ApiFootballClient
 from services.futmondo import FutmondoClient, FutmondoError, normalize_roster
@@ -106,16 +106,19 @@ def transfers():
         except FutmondoError as e:
             errors.append(str(e))
 
-    ranked = []
-    if listings and api_enabled:
-        ranked, rank_errors = transfers_service.rank_market(listings)
-        errors.extend(rank_errors)
-
     squad = store.load_squad()
     status_cache = store.load_status_cache()
     unavailable, worst_value = ([], [])
+    benchmark_value = scoring.DEFAULT_VALUE_BENCHMARK
     if api_enabled:
         unavailable, worst_value = transfers_service.sell_candidates(squad, status_cache)
+        squad_values = [status_cache.get(p["id"], {}).get("value") for p in squad]
+        benchmark_value = scoring.squad_value_benchmark(squad_values)
+
+    ranked = []
+    if listings and api_enabled:
+        ranked, rank_errors = transfers_service.rank_market(listings, benchmark_value)
+        errors.extend(rank_errors)
 
     return render_template(
         "transfers.html",
@@ -125,6 +128,7 @@ def transfers():
         errors=errors,
         futmondo_enabled=futmondo_client.enabled,
         api_enabled=api_enabled,
+        benchmark_value=benchmark_value,
     )
 
 

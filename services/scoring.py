@@ -84,3 +84,30 @@ def value_for_money(score, price):
     if price_millions <= 0:
         return None
     return round(score / price_millions, 3)
+
+
+DEFAULT_VALUE_BENCHMARK = 0.3  # pts/M€ de referencia si aún no hay datos de tu plantilla
+
+
+def squad_value_benchmark(values, default=DEFAULT_VALUE_BENCHMARK):
+    """Referencia de 'buena relación puntos/precio' a partir de tu propia
+    plantilla (mediana de los jugadores disponibles), para no comparar
+    fichajes contra un número inventado sino contra lo que tú ya pagas."""
+    values = sorted(v for v in values if v is not None)
+    if not values:
+        return default
+    mid = len(values) // 2
+    if len(values) % 2:
+        return values[mid]
+    return round((values[mid - 1] + values[mid]) / 2, 3)
+
+
+def max_recommended_bid(score, benchmark_value):
+    """Precio máximo (subasta) que tendría sentido pagar para que el fichaje
+    siga siendo, como mínimo, tan rentable (puntos por millón) como tu
+    referencia. Pujar por encima es pagar más de lo que rinde en forma —
+    puede compensar igualmente si es una posición sin alternativas, pero
+    entonces es una decisión tuya, no una ganga."""
+    if score is None or not benchmark_value or benchmark_value <= 0:
+        return None
+    return round((score / benchmark_value) * 1_000_000)

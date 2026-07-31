@@ -93,3 +93,33 @@ def test_player_score_defaults_when_no_rating():
     swing = {"avg_goals_against_rivals": None, "avg_goals_for_rivals": None}
     score = scoring.player_score("DEL", rating=None, starter_rate=None, swing=swing)
     assert score > 0
+
+
+def test_squad_value_benchmark_median():
+    assert scoring.squad_value_benchmark([0.2, 0.4, 0.6]) == 0.4
+    assert scoring.squad_value_benchmark([0.2, 0.6]) == 0.4
+
+
+def test_squad_value_benchmark_ignores_missing_data():
+    assert scoring.squad_value_benchmark([None, None, 0.5]) == 0.5
+
+
+def test_squad_value_benchmark_falls_back_when_empty():
+    assert scoring.squad_value_benchmark([]) == scoring.DEFAULT_VALUE_BENCHMARK
+    assert scoring.squad_value_benchmark([None, None]) == scoring.DEFAULT_VALUE_BENCHMARK
+
+
+def test_max_recommended_bid_matches_value_for_money():
+    # Si pagas justo el máximo recomendado, el valor resultante debe
+    # coincidir con la referencia usada (ida y vuelta de la misma fórmula).
+    score = 8.0
+    benchmark = 0.4
+    max_bid = scoring.max_recommended_bid(score, benchmark)
+    assert max_bid == 20_000_000
+    assert scoring.value_for_money(score, max_bid) == benchmark
+
+
+def test_max_recommended_bid_none_without_data():
+    assert scoring.max_recommended_bid(None, 0.4) is None
+    assert scoring.max_recommended_bid(8.0, None) is None
+    assert scoring.max_recommended_bid(8.0, 0) is None

@@ -24,17 +24,21 @@
     <div class="banner">{{ e }}</div>
   {% endfor %}
 
-  <h2>Comprar: mejor relación puntos/precio en el mercado ahora mismo</h2>
+  <h2>Comprar: ¿hasta cuánto pujar?</h2>
   <p class="hint">
     Puntuación = forma reciente ajustada por lo favorable que sea el calendario de sus
     próximos {{ 5 }} partidos según su posición. Valor = puntuación por cada millón de €.
-    Cuanto más alto el valor, más rentable el fichaje.
+    Puja máxima recomendada = precio al que ese fichaje seguiría siendo, como mínimo, tan
+    rentable como la referencia de tu propia plantilla ({{ benchmark_value }} pts/M€ ahora
+    mismo). Pujar por encima puede compensar si es una posición sin alternativas, pero ya
+    no es una ganga, es una decisión de necesidad.
   </p>
   <table>
     <thead>
       <tr>
-        <th>Jugador</th><th>Pos.</th><th>Equipo</th><th>Precio</th>
-        <th>Rating</th><th>Puntuación</th><th>Valor (pts/M€)</th><th>Próximo rival</th>
+        <th>Jugador</th><th>Pos.</th><th>Equipo</th><th>Precio actual</th>
+        <th>Rating</th><th>Puntuación</th><th>Valor (pts/M€)</th>
+        <th>Puja máxima recomendada</th><th>Próximo rival</th>
       </tr>
     </thead>
     <tbody>
@@ -47,10 +51,18 @@
         <td>{{ p.rating or '—' }}</td>
         <td>{{ p.score or '—' }}</td>
         <td><strong>{{ p.value if p.value is not none else '—' }}</strong></td>
+        <td>
+          {% if p.max_bid is not none %}
+            {{ "{:,.0f}".format(p.max_bid) }}€
+            {% if p.worth_bidding_more %} <span class="tag-ok">margen para pujar más</span>
+            {% else %} <span class="tag-warn">ya en/sobre su límite</span>
+            {% endif %}
+          {% else %} — {% endif %}
+        </td>
         <td>{{ p.next_rival or '—' }}</td>
       </tr>
       {% else %}
-      <tr><td colspan="8">Sin candidatos analizados todavía (revisa que haya jugadores en el mercado y las claves configuradas).</td></tr>
+      <tr><td colspan="9">Sin candidatos analizados todavía (revisa que haya jugadores en el mercado y las claves configuradas).</td></tr>
       {% endfor %}
     </tbody>
   </table>
