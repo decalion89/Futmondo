@@ -117,8 +117,58 @@ compartes su estructura (sin el token) puedo ajustar el mapeo.
 ```
 app.py                  # rutas Flask
 services/api_football.py  # cliente de API-Football
+services/futmondo.py      # cliente no oficial de la API de Futmondo
 services/store.py         # guardado de tu plantilla en JSON
 services/sync.py          # cruza plantilla + datos reales
-templates/, static/       # interfaz web
-data/squad.json           # tu plantilla (se crea al añadir el primer jugador)
+templates/, static/       # interfaz web + PWA (manifest, service worker, iconos)
+data/squad.json           # tu plantilla (se crea al importar o añadir el primer jugador)
 ```
+
+## Ponerla en tu móvil (desplegar en Render + instalar como app)
+
+Para usarla desde el móvil necesita estar accesible por internet, no solo en
+tu ordenador. Uso [Render](https://render.com) porque tiene plan gratuito
+sin pedir tarjeta.
+
+### 1. Protege la app con contraseña (obligatorio antes de publicarla)
+
+En cuanto la despliegues, su URL es pública. Define estas dos variables (en
+Render, no en tu `.env` local si no quieres) para que pida usuario/contraseña:
+
+```
+APP_USERNAME=tu_usuario
+APP_PASSWORD=una_contraseña_fuerte
+```
+
+Sin ellas, cualquiera con el enlace vería tu plantilla y podría lanzar
+sincronizaciones con tu token de Futmondo.
+
+### 2. Despliega en Render
+
+1. Sube este repositorio a tu cuenta de GitHub (si no lo está ya).
+2. Entra en https://dashboard.render.com → **New** → **Blueprint** → conecta
+   el repo. Render detecta `render.yaml` automáticamente y crea el servicio.
+3. Te pedirá rellenar las variables marcadas como secretas: `APP_USERNAME`,
+   `APP_PASSWORD`, `API_FOOTBALL_KEY`, `FUTMONDO_TOKEN`, `FUTMONDO_USER_ID`,
+   `FUTMONDO_CHAMPIONSHIP_ID`, `FUTMONDO_TEAM_ID` (los mismos valores que ya
+   tienes en tu `.env` local).
+4. Despliega. Render te da una URL tipo `https://futmondo-manager.onrender.com`.
+
+**Importante — disco efímero**: el plan gratuito de Render no conserva
+archivos en disco entre reinicios/redeploys. Cada vez que la app "se
+duerma" por inactividad y vuelva a arrancar, `data/squad.json` puede quedar
+vacío. No pasa nada: pulsa **"Importar plantilla real de Futmondo"** de
+nuevo (tarda 1 segundo, tu plantilla vive en Futmondo, no aquí) y luego
+"Actualizar datos".
+
+### 3. Instálala como app en el móvil (sin Google Play)
+
+1. Abre la URL de Render en Chrome (Android) o Safari (iPhone) desde el
+   móvil, mete tu usuario/contraseña.
+2. Menú del navegador → **"Instalar app"** / **"Añadir a pantalla de
+   inicio"**.
+3. Ya tienes un icono como una app normal, a pantalla completa.
+
+Si más adelante el token de Futmondo caduca, solo tienes que volver a
+capturarlo (sección de arriba) y actualizar la variable `FUTMONDO_TOKEN` en
+el dashboard de Render — no hace falta volver a desplegar código.

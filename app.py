@@ -1,6 +1,7 @@
+import hmac
 import json
 import os
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, Response
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -12,6 +13,29 @@ from services.futmondo import FutmondoClient, FutmondoError, normalize_roster
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET", "futmondo-local-dev")
+
+APP_USERNAME = os.environ.get("APP_USERNAME")
+APP_PASSWORD = os.environ.get("APP_PASSWORD")
+
+
+@app.before_request
+def require_auth():
+    """Si defines APP_USERNAME/APP_PASSWORD, protege toda la app con Basic
+    Auth. Imprescindible en cuanto la despliegues en una URL pública (por
+    ejemplo Render) para que nadie más pueda ver tu plantilla."""
+    if not (APP_USERNAME and APP_PASSWORD):
+        return None
+    auth = request.authorization
+    valid = (
+        auth
+        and hmac.compare_digest(auth.username, APP_USERNAME)
+        and hmac.compare_digest(auth.password, APP_PASSWORD)
+    )
+    if not valid:
+        return Response(
+            "Acceso restringido", 401, {"WWW-Authenticate": 'Basic realm="Futmondo Manager"'}
+        )
+    return None
 
 
 @app.route("/")

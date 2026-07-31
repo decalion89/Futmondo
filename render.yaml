@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: futmondo-manager
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: FLASK_SECRET
+        generateValue: true
+      - key: APP_USERNAME
+        sync: false
+      - key: APP_PASSWORD
+        sync: false
+      - key: API_FOOTBALL_KEY
+        sync: false
+      - key: API_FOOTBALL_LEAGUE_ID
+        value: "140"
+      - key: API_FOOTBALL_SEASON
+        sync: false
+      - key: FUTMONDO_TOKEN
+        sync: false
+      - key: FUTMONDO_USER_ID
+        sync: false
+      - key: FUTMONDO_CHAMPIONSHIP_ID
+        sync: false
+      - key: FUTMONDO_TEAM_ID
+        sync: false
