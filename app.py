@@ -62,6 +62,10 @@ def dashboard():
 
     last_sync = max((r["updated_at"] for r in rows if r.get("updated_at")), default=None)
 
+    total_value = sum(v for v in (scoring.parse_price(r.get("price")) for r in rows) if v)
+    available_count = sum(1 for r in rows if r.get("status") == "ok")
+    alert_count = sum(1 for r in rows if r.get("status") in ("lesionado", "sancionado", "duda"))
+
     return render_template(
         "index.html",
         players=rows,
@@ -69,6 +73,9 @@ def dashboard():
         futmondo_enabled=futmondo_enabled,
         positions=store.POSITIONS,
         captain=captain,
+        total_value=total_value,
+        available_count=available_count,
+        alert_count=alert_count,
         last_sync=last_sync,
     )
 

@@ -1,18 +1,7 @@
-<!doctype html>
-<html lang="es">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Mercado - Futmondo Manager</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
-  <meta name="theme-color" content="#1e7a34">
-</head>
-<body>
-  <header>
-    <h1>Mercado</h1>
-    <a href="{{ url_for('dashboard') }}">&larr; Volver a mi plantilla</a>
-  </header>
+{% extends "base.html" %}
+{% block title %}Mercado - Futmondo Manager{% endblock %}
+{% block content %}
+  <div class="section-title"><h2>Mercado</h2></div>
 
   {% if not futmondo_enabled %}
     <div class="banner">
@@ -29,6 +18,7 @@
     </div>
   {% endif %}
 
+  {% if listings %}
   <table>
     <thead>
       <tr>
@@ -41,15 +31,15 @@
     <tbody>
       {% for p in listings %}
       <tr>
-        <td>{{ p.name }}</td>
-        <td>{{ p.position }}</td>
-        <td>{{ p.team }}</td>
-        <td>{{ p.price or '-' }}</td>
+        <td data-label="Jugador">{{ p.name }}</td>
+        <td data-label="Pos.">{{ p.position }}</td>
+        <td data-label="Equipo">{{ p.team }}</td>
+        <td data-label="Precio">{{ p.price or '-' }}</td>
       </tr>
-      {% else %}
-      <tr><td colspan="4">Sin jugadores en el mercado ahora mismo (o pendiente de sincronizar).</td></tr>
       {% endfor %}
     </tbody>
   </table>
-</body>
-</html>
+  {% else %}
+  <div class="empty-state">Sin jugadores en el mercado ahora mismo (o pendiente de sincronizar).</div>
+  {% endif %}
+{% endblock %}

@@ -1,46 +1,16 @@
-<!doctype html>
-<html lang="es">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Mi plantilla Futmondo</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
-  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icon-192.png') }}">
-  <meta name="theme-color" content="#1e7a34">
-</head>
-<body>
-  <script>
-    if ("serviceWorker" in navigator) {
-      window.addEventListener("load", () => {
-        navigator.serviceWorker.register("{{ url_for('static', filename='sw.js') }}");
-      });
-    }
-  </script>
-  <header>
-    <h1>Mi plantilla</h1>
-    <div class="actions">
-      <a href="{{ url_for('market') }}">Ver mercado</a>
-      <a href="{{ url_for('transfers') }}">Fichajes recomendados</a>
-      <form action="{{ url_for('import_futmondo') }}" method="post">
-        <button type="submit" {{ 'disabled' if not futmondo_enabled }}>Importar plantilla real de Futmondo</button>
-      </form>
-      <form action="{{ url_for('sync') }}" method="post">
-        <button type="submit" {{ 'disabled' if not api_enabled }}>Actualizar datos (lesiones/sanciones/calendario)</button>
-      </form>
-    </div>
-  </header>
+{% extends "base.html" %}
+{% block title %}Mi plantilla - Futmondo Manager{% endblock %}
+{% block content %}
 
-  {% if last_sync %}
-    <p class="hint">Última actualización de datos: {{ last_sync }}</p>
-  {% endif %}
-
-  {% if captain %}
-    <div class="banner captain">
-      ⭐ Capitán recomendado esta jornada: <strong>{{ captain.name }}</strong>
-      (puntuación {{ captain.score }}{% if captain.rival %}, {{ 'vs' if captain.is_home else '@' }} {{ captain.rival }}{% endif %})
-    </div>
-  {% endif %}
+  <div class="btn-row">
+    <form action="{{ url_for('import_futmondo') }}" method="post">
+      <button type="submit" class="btn btn-primary" {{ 'disabled' if not futmondo_enabled }}>⬇ Importar plantilla real</button>
+    </form>
+    <form action="{{ url_for('sync') }}" method="post">
+      <button type="submit" class="btn" {{ 'disabled' if not api_enabled }}>↻ Actualizar datos</button>
+    </form>
+    {% if last_sync %}<span class="hint" style="align-self:center;">Última actualización: {{ last_sync }}</span>{% endif %}
+  </div>
 
   {% if not futmondo_enabled %}
     <div class="banner">
@@ -57,83 +27,122 @@
     </div>
   {% endif %}
 
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      <ul class="flashes">
-        {% for category, msg in messages %}
-          <li class="{{ category }}">{{ msg }}</li>
-        {% endfor %}
-      </ul>
-    {% endif %}
-  {% endwith %}
+  <div class="stat-grid">
+    <div class="stat-card">
+      <div class="stat-label">Jugadores</div>
+      <div class="stat-value">{{ players|length }}</div>
+      <div class="stat-sub">en tu plantilla</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Disponibles</div>
+      <div class="stat-value">{{ available_count }}/{{ players|length }}</div>
+      <div class="stat-sub">{{ alert_count }} con aviso</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Valor plantilla</div>
+      <div class="stat-value">{{ "{:,.0f}".format(total_value).replace(",", ".") if total_value else '—' }}€</div>
+      <div class="stat-sub">precio total</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Capitán recomendado</div>
+      <div class="stat-value" style="font-size:1.1rem;">{{ captain.name if captain else '—' }}</div>
+      <div class="stat-sub">{{ 'puntuación ' + captain.score|string if captain else 'pendiente de datos' }}</div>
+    </div>
+  </div>
 
-  <table>
-    <thead>
-      <tr>
-        <th>Jugador</th>
-        <th>Pos.</th>
-        <th>Equipo</th>
-        <th>Precio</th>
-        <th>Estado</th>
-        <th>Próximo rival</th>
-        <th>Dificultad rival</th>
-        <th title="Forma reciente ajustada por rival y titularidad">Puntuación</th>
-        <th title="Puntuación por cada millón de € invertido">Valor</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for p in players %}
-      <tr class="status-{{ p.get('status', 'sin-datos') }}">
-        <td>{{ p.name }}</td>
-        <td>{{ p.position }}</td>
-        <td>{{ p.team }}</td>
-        <td>{{ p.price or '-' }}</td>
-        <td>
-          {% if p.get('status') == 'sancionado' %} 🟥 Sancionado
-          {% elif p.get('status') == 'lesionado' %} 🤕 Lesionado{% if p.get('reason') %} ({{ p.get('reason') }}){% endif %}
-          {% elif p.get('status') == 'duda' %} ⚠️ Duda{% if p.get('reason') %} ({{ p.get('reason') }}){% endif %}
-          {% elif p.get('status') == 'ok' %} ✅ Disponible
-          {% else %} — sin sincronizar
+  {% if captain %}
+    <div class="banner captain">
+      <span>⭐</span>
+      <span>Capitán recomendado esta jornada: <strong>{{ captain.name }}</strong>
+      (puntuación {{ captain.score }}{% if captain.rival %}, {{ 'vs' if captain.is_home else '@' }} {{ captain.rival }}{% endif %})</span>
+    </div>
+  {% endif %}
+
+  <div class="tabs" id="position-tabs">
+    <button type="button" class="tab active" data-pos="all">Todos</button>
+    {% for pos in positions %}
+      <button type="button" class="tab" data-pos="{{ pos }}">{{ pos }}</button>
+    {% endfor %}
+  </div>
+
+  <div class="player-list" id="player-list">
+    {% for p in players %}
+    <div class="player-card status-{{ p.get('status', 'sin-datos') }}" data-position="{{ p.position }}">
+      <div class="avatar">{{ p.name[:2]|upper }}</div>
+      <div class="player-main">
+        <div class="player-name">{{ p.name }}</div>
+        <div class="player-sub">{{ p.position }} · {{ p.team }}{% if p.price %} · {{ "{:,.0f}".format(p.price|float).replace(",", ".") }}€{% endif %}</div>
+      </div>
+
+      <div class="player-meta">
+        <span class="badge {{ {'sancionado':'badge-danger','lesionado':'badge-danger','duda':'badge-warn','ok':'badge-ok'}.get(p.get('status'), 'badge-neutral') }}">
+          {% if p.get('status') == 'sancionado' %}🟥 Sancionado
+          {% elif p.get('status') == 'lesionado' %}🤕 Lesionado
+          {% elif p.get('status') == 'duda' %}⚠️ Duda
+          {% elif p.get('status') == 'ok' %}✅ Disponible
+          {% else %}Sin sincronizar
           {% endif %}
-        </td>
-        <td>
-          {% if p.get('rival') %}
-            {{ 'vs' if p.get('is_home') else '@' }} {{ p.get('rival') }}
-          {% else %} — {% endif %}
-        </td>
-        <td>
-          {% set diff = p.get('fixture_difficulty') %}
-          {% if diff is not none %}
-            {{ diff }} goles/partido encajados
-            {% if diff < 1.0 %} (difícil){% elif diff > 1.5 %} (fácil){% endif %}
-          {% else %} — {% endif %}
-        </td>
-        <td>{{ p.get('score') if p.get('score') is not none else '—' }}</td>
-        <td>{{ p.get('value') if p.get('value') is not none else '—' }}</td>
-        <td>
-          <form action="{{ url_for('remove_player', player_id=p.id) }}" method="post" onsubmit="return confirm('¿Eliminar {{ p.name }}?')">
-            <button type="submit" class="danger">Eliminar</button>
-          </form>
-        </td>
-      </tr>
-      {% else %}
-      <tr><td colspan="8">Todavía no has añadido jugadores.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+        </span>
 
-  <h2>Añadir jugador a mano (opcional, por si el import falla o quieres forzar algo)</h2>
-  <form action="{{ url_for('add_player') }}" method="post" class="add-form">
-    <input type="text" name="name" placeholder="Nombre" required>
-    <select name="position" required>
-      {% for pos in positions %}
-        <option value="{{ pos }}">{{ pos }}</option>
-      {% endfor %}
-    </select>
-    <input type="text" name="team" placeholder="Equipo (ej. Real Madrid)" required>
-    <input type="text" name="price" placeholder="Precio (opcional)">
-    <button type="submit">Añadir</button>
-  </form>
-</body>
-</html>
+        {% if p.get('rival') %}
+        <div class="meta-block">
+          <span class="meta-label">Rival</span>
+          <span class="meta-value">{{ 'vs' if p.get('is_home') else '@' }} {{ p.get('rival') }}</span>
+        </div>
+        {% endif %}
+
+        {% if p.get('score') is not none %}
+        <div class="meta-block">
+          <span class="meta-label">Puntuación</span>
+          <span class="meta-value">{{ p.get('score') }}</span>
+        </div>
+        {% endif %}
+
+        {% if p.get('value') is not none %}
+        <div class="meta-block">
+          <span class="meta-label">Valor pts/M€</span>
+          <span class="meta-value">{{ p.get('value') }}</span>
+        </div>
+        {% endif %}
+
+        <form action="{{ url_for('remove_player', player_id=p.id) }}" method="post" onsubmit="return confirm('¿Eliminar {{ p.name }}?')">
+          <button type="submit" class="btn btn-danger btn-sm" title="Eliminar">✕</button>
+        </form>
+      </div>
+      {% if p.get('reason') %}<div class="hint" style="width:100%;margin-top:0.35rem;">{{ p.get('reason') }}</div>{% endif %}
+    </div>
+    {% else %}
+    <div class="empty-state">Todavía no has añadido jugadores. Importa tu plantilla real o añade uno a mano abajo.</div>
+    {% endfor %}
+  </div>
+
+  <details class="add-player">
+    <summary>+ Añadir jugador a mano (opcional, por si el import falla o quieres forzar algo)</summary>
+    <form action="{{ url_for('add_player') }}" method="post" class="add-form">
+      <input type="text" name="name" placeholder="Nombre" required>
+      <select name="position" required>
+        {% for pos in positions %}
+          <option value="{{ pos }}">{{ pos }}</option>
+        {% endfor %}
+      </select>
+      <input type="text" name="team" placeholder="Equipo (ej. Real Madrid)" required>
+      <input type="text" name="price" placeholder="Precio (opcional)">
+      <button type="submit" class="btn btn-primary">Añadir</button>
+    </form>
+  </details>
+
+  <script>
+    const tabs = document.querySelectorAll('#position-tabs .tab');
+    const cards = document.querySelectorAll('#player-list .player-card');
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        tabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        const pos = tab.dataset.pos;
+        cards.forEach(card => {
+          card.style.display = (pos === 'all' || card.dataset.position === pos) ? '' : 'none';
+        });
+      });
+    });
+  </script>
+{% endblock %}

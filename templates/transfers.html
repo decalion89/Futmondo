@@ -1,18 +1,7 @@
-<!doctype html>
-<html lang="es">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Fichajes - Futmondo Manager</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
-  <meta name="theme-color" content="#1e7a34">
-</head>
-<body>
-  <header>
-    <h1>Fichajes: riesgo/beneficio</h1>
-    <a href="{{ url_for('dashboard') }}">&larr; Volver a mi plantilla</a>
-  </header>
+{% extends "base.html" %}
+{% block title %}Fichajes - Futmondo Manager{% endblock %}
+{% block content %}
+  <div class="section-title"><h2>Fichajes: riesgo/beneficio</h2></div>
 
   {% if not futmondo_enabled %}
     <div class="banner">Configura <code>FUTMONDO_TOKEN</code>/<code>FUTMONDO_USER_ID</code> para ver el mercado real (ver README).</div>
@@ -24,15 +13,17 @@
     <div class="banner">{{ e }}</div>
   {% endfor %}
 
-  <h2>Comprar: ¿hasta cuánto pujar?</h2>
+  <div class="section-title"><h2>Comprar: ¿hasta cuánto pujar?</h2></div>
   <p class="hint">
     Puntuación = forma reciente ajustada por lo favorable que sea el calendario de sus
-    próximos {{ 5 }} partidos según su posición. Valor = puntuación por cada millón de €.
+    próximos 5 partidos según su posición. Valor = puntuación por cada millón de €.
     Puja máxima recomendada = precio al que ese fichaje seguiría siendo, como mínimo, tan
     rentable como la referencia de tu propia plantilla ({{ benchmark_value }} pts/M€ ahora
     mismo). Pujar por encima puede compensar si es una posición sin alternativas, pero ya
     no es una ganga, es una decisión de necesidad.
   </p>
+
+  {% if ranked %}
   <table>
     <thead>
       <tr>
@@ -44,14 +35,14 @@
     <tbody>
       {% for p in ranked %}
       <tr class="{{ 'highlight' if loop.index <= 3 }}">
-        <td>{{ p.name }}</td>
-        <td>{{ p.position }}</td>
-        <td>{{ p.team }}</td>
-        <td>{{ p.price or '-' }}</td>
-        <td>{{ p.rating or '—' }}</td>
-        <td>{{ p.score or '—' }}</td>
-        <td><strong>{{ p.value if p.value is not none else '—' }}</strong></td>
-        <td>
+        <td data-label="Jugador">{{ p.name }}</td>
+        <td data-label="Pos.">{{ p.position }}</td>
+        <td data-label="Equipo">{{ p.team }}</td>
+        <td data-label="Precio actual">{{ p.price or '-' }}</td>
+        <td data-label="Rating">{{ p.rating or '—' }}</td>
+        <td data-label="Puntuación">{{ p.score or '—' }}</td>
+        <td data-label="Valor (pts/M€)"><strong>{{ p.value if p.value is not none else '—' }}</strong></td>
+        <td data-label="Puja máxima">
           {% if p.max_bid is not none %}
             {{ "{:,.0f}".format(p.max_bid) }}€
             {% if p.worth_bidding_more %} <span class="tag-ok">margen para pujar más</span>
@@ -59,15 +50,16 @@
             {% endif %}
           {% else %} — {% endif %}
         </td>
-        <td>{{ p.next_rival or '—' }}</td>
+        <td data-label="Próximo rival">{{ p.next_rival or '—' }}</td>
       </tr>
-      {% else %}
-      <tr><td colspan="9">Sin candidatos analizados todavía (revisa que haya jugadores en el mercado y las claves configuradas).</td></tr>
       {% endfor %}
     </tbody>
   </table>
+  {% else %}
+  <div class="empty-state">Sin candidatos analizados todavía (revisa que haya jugadores en el mercado y las claves configuradas).</div>
+  {% endif %}
 
-  <h2>Vender: prioridad por riesgo</h2>
+  <div class="section-title"><h2>Vender: prioridad por riesgo</h2></div>
   <p class="hint">Primero los que ahora mismo no suman (lesión/sanción/duda) — no tiene sentido pagarles clausula/mantenerlos si tienes mejor opción. Luego, de entre tus jugadores disponibles, los de peor relación puntos/precio.</p>
 
   {% if unavailable %}
@@ -77,10 +69,10 @@
       <tbody>
         {% for p in unavailable %}
         <tr class="status-{{ p.status }}">
-          <td>{{ p.name }}</td>
-          <td>{{ p.position }}</td>
-          <td>{{ p.status }}</td>
-          <td>{{ p.reason or '—' }}</td>
+          <td data-label="Jugador">{{ p.name }}</td>
+          <td data-label="Pos.">{{ p.position }}</td>
+          <td data-label="Estado">{{ p.status }}</td>
+          <td data-label="Motivo">{{ p.reason or '—' }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -94,15 +86,14 @@
       <tbody>
         {% for p in worst_value %}
         <tr>
-          <td>{{ p.name }}</td>
-          <td>{{ p.position }}</td>
-          <td>{{ p.price or '-' }}</td>
-          <td>{{ p.score or '—' }}</td>
-          <td>{{ p.value if p.value is not none else '—' }}</td>
+          <td data-label="Jugador">{{ p.name }}</td>
+          <td data-label="Pos.">{{ p.position }}</td>
+          <td data-label="Precio">{{ p.price or '-' }}</td>
+          <td data-label="Puntuación">{{ p.score or '—' }}</td>
+          <td data-label="Valor (pts/M€)">{{ p.value if p.value is not none else '—' }}</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   {% endif %}
-</body>
-</html>
+{% endblock %}
