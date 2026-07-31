@@ -71,6 +71,26 @@ una vez desde el navegador — se basa en cómo lo hace
 [vicenteqa/futmondo-utils](https://github.com/vicenteqa/futmondo-utils), un
 proyecto de la comunidad que ya reversea esta misma API.
 
+### Opción rápida: captura automática (recomendado)
+
+En vez de buscarlo a mano en las DevTools, hay un script que abre un
+navegador de verdad, tú inicias sesión normal y navegas a tu liga como
+siempre, y él detecta la petición y rellena tu `.env` solo:
+
+```bash
+pip install playwright
+playwright install chromium
+python scripts/capture_futmondo_token.py
+```
+
+Sigue las instrucciones que salen en la terminal (login → entra en tu liga
+con tus amigos → abre "Mi equipo"). En cuanto detecte el token, guarda
+`FUTMONDO_TOKEN`/`FUTMONDO_USER_ID`/`FUTMONDO_CHAMPIONSHIP_ID`/`FUTMONDO_TEAM_ID`
+en tu `.env` automáticamente y termina. Tu usuario/contraseña nunca pasan
+por este script (los escribes tú directamente en la web de Futmondo).
+
+### Opción manual (si prefieres no usar el script)
+
 1. Abre https://app.futmondo.com y haz login normalmente.
 2. Abre las herramientas de desarrollador (F12 o clic derecho →
    Inspeccionar) → pestaña **Network** (Red) → filtra por "Fetch/XHR".
