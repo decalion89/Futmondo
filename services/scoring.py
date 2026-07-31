@@ -80,7 +80,56 @@ def fatigue_factor(congestion_count):
     return 1.0
 
 
-def player_score(position, rating, starter_rate, swing, congestion_count=None):
+SEASON_TOTAL_GAMES = 38  # LaLiga a 20 equipos
+LOW_STAKES_RANK_RANGE = (8, 14)  # zona media: ni Europa/título ni descenso
+SEASON_PROGRESS_FOR_DEAD_RUBBER = 0.7  # a partir de qué % de jornadas jugadas empieza a notarse
+
+
+def team_motivation_factor(standings_row, total_games=SEASON_TOTAL_GAMES):
+    """¿Se juega algo el equipo? Con la clasificación (que ya pedimos para
+    el calendario) miramos si está en pelea de título/Europa o de descenso
+    (motivación alta) o si está instalado en la zona media sin nada en juego
+    ya avanzada la temporada (motivación algo más baja: son los clásicos
+    'partidos de trámite' que rinden menos, sobre todo defensivamente).
+
+    Es una aproximación por posición en tabla, no un modelo de probabilidad
+    de descenso/Europa real — pero capta el caso más claro: un equipo
+    14º a falta de 3 jornadas no se juega nada.
+    """
+    if not standings_row:
+        return 1.0
+    rank = standings_row.get("rank")
+    played = (standings_row.get("all") or {}).get("played")
+    if rank is None or not played:
+        return 1.0
+    if not (LOW_STAKES_RANK_RANGE[0] <= rank <= LOW_STAKES_RANK_RANGE[1]):
+        return 1.0  # pelea título/Europa o pelea el descenso
+    season_progress = played / total_games
+    if season_progress < SEASON_PROGRESS_FOR_DEAD_RUBBER:
+        return 1.0  # aún puede cambiar mucho, no lo tratamos como trámite
+    return 0.93
+
+
+CARD_SUSPENSION_THRESHOLD = 5  # amarillas acumuladas que suelen disparar sanción en LaLiga
+
+
+def card_suspension_risk(yellow_cards):
+    """True si el jugador está a una amarilla de una sanción probable por
+    acumulación. Aproximado: LaLiga aplica ciclos de acumulación con
+    reinicios en fechas concretas de la temporada que no modelamos aquí, así
+    que trátalo como aviso a vigilar, no como certeza."""
+    if yellow_cards is None:
+        return False
+    return yellow_cards % CARD_SUSPENSION_THRESHOLD == CARD_SUSPENSION_THRESHOLD - 1
+
+
+def is_penalty_taker(penalty_scored, penalty_missed):
+    """Señal de rol importante: si ha lanzado penaltis esta temporada
+    (marcados o fallados), es indicio fuerte de ser el lanzador designado."""
+    return bool((penalty_scored or 0) + (penalty_missed or 0) > 0)
+
+
+def player_score(position, rating, starter_rate, swing, congestion_count=None, motivation_factor=1.0, penalty_taker=False):
     """Puntuación relativa para comparar tus propios jugadores disponibles
     entre sí (no es una predicción de puntos Futmondo)."""
     base = rating if rating is not None else 6.0
@@ -95,7 +144,8 @@ def player_score(position, rating, starter_rate, swing, congestion_count=None):
             fixture_factor = 1.15 - min(gf, 2.5) * 0.15
     reliability = 0.7 + 0.3 * (starter_rate if starter_rate is not None else 0.5)
     fatigue = fatigue_factor(congestion_count)
-    return round(base * fixture_factor * reliability * fatigue, 2)
+    penalty_bonus = 1.05 if penalty_taker else 1.0
+    return round(base * fixture_factor * reliability * fatigue * (motivation_factor or 1.0) * penalty_bonus, 2)
 
 
 def parse_price(price):

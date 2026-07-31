@@ -81,6 +81,7 @@ def sync_all():
             next_fixture = swing["fixtures"][0] if swing["fixtures"] else None
 
             rating, starter_rate = None, None
+            yellow_cards, penalty_taker = None, False
             try:
                 stats = client.get_player_statistics(pid, team_id)
                 if stats:
@@ -89,11 +90,20 @@ def sync_all():
                     appearences = games.get("appearences") or 0
                     lineups = games.get("lineups") or 0
                     starter_rate = (lineups / appearences) if appearences else None
+                    yellow_cards = (stats.get("cards") or {}).get("yellow")
+                    penalty = stats.get("penalty") or {}
+                    penalty_taker = scoring.is_penalty_taker(penalty.get("scored"), penalty.get("missed"))
             except (ApiFootballError, TypeError, ValueError):
                 pass
 
+            motivation = scoring.team_motivation_factor(standings.get(str(team_id)))
+            card_risk = scoring.card_suspension_risk(yellow_cards)
+
             score = (
-                scoring.player_score(player["position"], rating, starter_rate, swing, congestion.get("count"))
+                scoring.player_score(
+                    player["position"], rating, starter_rate, swing, congestion.get("count"),
+                    motivation, penalty_taker,
+                )
                 if status == "ok" else None
             )
             value = scoring.value_for_money(score, player.get("price")) if status == "ok" else None
@@ -109,6 +119,10 @@ def sync_all():
                 "rating": rating,
                 "congestion_count": congestion.get("count"),
                 "congestion_competitions": congestion.get("competitions"),
+                "yellow_cards": yellow_cards,
+                "card_risk": card_risk,
+                "penalty_taker": penalty_taker,
+                "low_motivation": motivation < 1.0,
                 "score": score,
                 "value": value,
                 "updated_at": datetime.datetime.utcnow().isoformat(),

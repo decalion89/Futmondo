@@ -167,3 +167,52 @@ def test_player_score_penalizes_fixture_congestion():
     fresh = scoring.player_score("DEL", rating=7.0, starter_rate=1.0, swing=swing, congestion_count=1)
     congested = scoring.player_score("DEL", rating=7.0, starter_rate=1.0, swing=swing, congestion_count=4)
     assert congested < fresh
+
+
+def _standings_row(rank, played):
+    return {"rank": rank, "all": {"played": played}}
+
+
+def test_team_motivation_high_stakes_positions_unaffected():
+    # Pelea título/Europa (rank 3) o descenso (rank 18): motivación siempre alta
+    assert scoring.team_motivation_factor(_standings_row(3, 30)) == 1.0
+    assert scoring.team_motivation_factor(_standings_row(18, 30)) == 1.0
+
+
+def test_team_motivation_mid_table_early_season_unaffected():
+    # Zona media pero aún queda mucha temporada: podría cambiar todo
+    assert scoring.team_motivation_factor(_standings_row(10, 15)) == 1.0
+
+
+def test_team_motivation_mid_table_late_season_penalized():
+    # Zona media, temporada muy avanzada: partido de trámite
+    assert scoring.team_motivation_factor(_standings_row(10, 32)) < 1.0
+
+
+def test_team_motivation_defaults_without_data():
+    assert scoring.team_motivation_factor(None) == 1.0
+    assert scoring.team_motivation_factor({}) == 1.0
+
+
+def test_card_suspension_risk():
+    assert scoring.card_suspension_risk(4) is True   # a una amarilla de la 5ª
+    assert scoring.card_suspension_risk(9) is True   # a una del segundo ciclo
+    assert scoring.card_suspension_risk(3) is False
+    assert scoring.card_suspension_risk(0) is False
+    assert scoring.card_suspension_risk(None) is False
+
+
+def test_is_penalty_taker():
+    assert scoring.is_penalty_taker(2, 0) is True
+    assert scoring.is_penalty_taker(0, 1) is True
+    assert scoring.is_penalty_taker(0, 0) is False
+    assert scoring.is_penalty_taker(None, None) is False
+
+
+def test_player_score_rewards_penalty_taker_and_motivation():
+    swing = {"avg_goals_against_rivals": None, "avg_goals_for_rivals": None}
+    baseline = scoring.player_score("DEL", rating=7.0, starter_rate=1.0, swing=swing)
+    with_penalty = scoring.player_score("DEL", rating=7.0, starter_rate=1.0, swing=swing, penalty_taker=True)
+    low_motivation = scoring.player_score("DEL", rating=7.0, starter_rate=1.0, swing=swing, motivation_factor=0.93)
+    assert with_penalty > baseline
+    assert low_motivation < baseline

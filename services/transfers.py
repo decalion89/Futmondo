@@ -18,6 +18,7 @@ def _score_candidate(client, standings, name, team_name, position):
         return None
 
     rating, starter_rate = None, None
+    yellow_cards, penalty_taker = None, False
     try:
         stats = client.get_player_statistics(pid, team_id)
     except ApiFootballError:
@@ -28,6 +29,9 @@ def _score_candidate(client, standings, name, team_name, position):
         appearences = games.get("appearences") or 0
         lineups = games.get("lineups") or 0
         starter_rate = (lineups / appearences) if appearences else None
+        yellow_cards = (stats.get("cards") or {}).get("yellow")
+        penalty = stats.get("penalty") or {}
+        penalty_taker = scoring.is_penalty_taker(penalty.get("scored"), penalty.get("missed"))
 
     try:
         fixtures = client.get_next_fixtures(team_id, scoring.HORIZON)
@@ -42,13 +46,19 @@ def _score_candidate(client, standings, name, team_name, position):
     except ApiFootballError:
         pass
 
-    score = scoring.player_score(position, rating, starter_rate, swing, congestion_count)
+    motivation = scoring.team_motivation_factor(standings.get(str(team_id)))
+    card_risk = scoring.card_suspension_risk(yellow_cards)
+
+    score = scoring.player_score(position, rating, starter_rate, swing, congestion_count, motivation, penalty_taker)
     next_fixture = swing["fixtures"][0] if swing["fixtures"] else None
     return {
         "rating": rating,
         "starter_rate": starter_rate,
         "score": score,
         "congestion_count": congestion_count,
+        "card_risk": card_risk,
+        "penalty_taker": penalty_taker,
+        "low_motivation": motivation < 1.0,
         "next_rival": next_fixture["rival"] if next_fixture else None,
     }
 

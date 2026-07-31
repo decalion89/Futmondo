@@ -111,6 +111,18 @@
         </span>
         {% endif %}
 
+        {% if p.get('card_risk') %}
+        <span class="badge badge-warn" title="LaLiga suele sancionar a la 5ª amarilla acumulada">🟨 a una amarilla de sanción</span>
+        {% endif %}
+
+        {% if p.get('penalty_taker') %}
+        <span class="badge badge-ok" title="Ha lanzado penaltis esta temporada">🎯 lanza penaltis</span>
+        {% endif %}
+
+        {% if p.get('low_motivation') %}
+        <span class="badge badge-neutral" title="Zona media de la tabla, temporada avanzada: partido de trámite">😴 poco en juego</span>
+        {% endif %}
+
         <form action="{{ url_for('remove_player', player_id=p.id) }}" method="post" onsubmit="return confirm('¿Eliminar {{ p.name }}?')">
           <button type="submit" class="btn btn-danger btn-sm" title="Eliminar">✕</button>
         </form>
