@@ -44,9 +44,10 @@
       <div class="stat-sub">precio total</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">Capitán recomendado</div>
-      <div class="stat-value" style="font-size:1.1rem;">{{ captain.name if captain else '—' }}</div>
-      <div class="stat-sub">{{ 'puntuación ' + captain.score|string if captain else 'pendiente de datos' }}</div>
+      <div class="stat-label">{{ 'Capitán recomendado' if captain_enabled else 'Mejor puntuación' }}</div>
+      {% set featured = captain if captain_enabled else top_performer %}
+      <div class="stat-value" style="font-size:1.1rem;">{{ featured.name if featured else '—' }}</div>
+      <div class="stat-sub">{{ 'puntuación ' + featured.score|string if featured else 'pendiente de datos' }}</div>
     </div>
   </div>
 
@@ -55,6 +56,12 @@
       <span>⭐</span>
       <span>Capitán recomendado esta jornada: <strong>{{ captain.name }}</strong>
       (puntuación {{ captain.score }}{% if captain.rival %}, {{ 'vs' if captain.is_home else '@' }} {{ captain.rival }}{% endif %})</span>
+    </div>
+  {% elif top_performer %}
+    <div class="banner captain">
+      <span>⭐</span>
+      <span>Tu liga no usa capitán, pero el jugador con mejor puntuación esta jornada es
+      <strong>{{ top_performer.name }}</strong> (puntuación {{ top_performer.score }}{% if top_performer.rival %}, {{ 'vs' if top_performer.is_home else '@' }} {{ top_performer.rival }}{% endif %})</span>
     </div>
   {% endif %}
 
@@ -68,7 +75,10 @@
   <div class="player-list" id="player-list">
     {% for p in players %}
     <div class="player-card status-{{ p.get('status', 'sin-datos') }}" data-position="{{ p.position }}">
-      <div class="avatar">{{ p.name[:2]|upper }}</div>
+      <div class="avatar">
+        {% if p.get('photo_url') %}<img src="{{ p.photo_url }}" alt="" onerror="this.remove()">{% endif %}
+        <span class="avatar-initials">{{ p.name[:2]|upper }}</span>
+      </div>
       <div class="player-main">
         <div class="player-name">{{ p.name }}</div>
         <div class="player-sub">{{ p.position }} · {{ p.team }}{% if p.price %} · {{ "{:,.0f}".format(p.price|float).replace(",", ".") }}€{% endif %}</div>

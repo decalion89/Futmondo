@@ -54,7 +54,15 @@ def dashboard():
     order = {"sancionado": 0, "lesionado": 1, "duda": 2, "ok": 3}
     rows.sort(key=lambda r: order.get(r.get("status", "ok"), 3))
 
+    # Algunas ligas de Futmondo desactivan la figura del capitán (sin
+    # puntos dobles) — configúralo en .env si es tu caso.
+    captain_enabled = os.environ.get("FUTMONDO_CAPTAIN_ENABLED", "true").lower() != "false"
     captain = max(
+        (r for r in rows if r.get("status") == "ok" and r.get("score") is not None),
+        key=lambda r: r["score"],
+        default=None,
+    ) if captain_enabled else None
+    top_performer = None if captain_enabled else max(
         (r for r in rows if r.get("status") == "ok" and r.get("score") is not None),
         key=lambda r: r["score"],
         default=None,
@@ -73,6 +81,8 @@ def dashboard():
         futmondo_enabled=futmondo_enabled,
         positions=store.POSITIONS,
         captain=captain,
+        captain_enabled=captain_enabled,
+        top_performer=top_performer,
         total_value=total_value,
         available_count=available_count,
         alert_count=alert_count,
@@ -124,7 +134,7 @@ def transfers():
 
     ranked = []
     if listings and api_enabled:
-        ranked, rank_errors = transfers_service.rank_market(listings, benchmark_value)
+        ranked, rank_errors = transfers_service.rank_market(listings, benchmark_value, squad)
         errors.extend(rank_errors)
 
     return render_template(

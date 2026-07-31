@@ -31,7 +31,13 @@
     <tbody>
       {% for p in listings %}
       <tr>
-        <td data-label="Jugador">{{ p.name }}</td>
+        <td data-label="Jugador">
+          <div class="avatar avatar-sm">
+            {% if p.get('photo_url') %}<img src="{{ p.photo_url }}" alt="" onerror="this.remove()">{% endif %}
+            <span class="avatar-initials">{{ p.name[:2]|upper }}</span>
+          </div>
+          {{ p.name }}
+        </td>
         <td data-label="Pos.">{{ p.position }}</td>
         <td data-label="Equipo">{{ p.team }}</td>
         <td data-label="Precio">{{ p.price or '-' }}</td>

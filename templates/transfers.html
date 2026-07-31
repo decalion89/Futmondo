@@ -22,6 +22,14 @@
     mismo). Pujar por encima puede compensar si es una posición sin alternativas, pero ya
     no es una ganga, es una decisión de necesidad.
   </p>
+  <p class="hint">
+    🚫 = ya tienes el máximo de jugadores de ese equipo real permitido en tu liga
+    (según las normas de tu liga, 2 por equipo — ajustable en <code>FUTMONDO_MAX_SAME_TEAM</code>).
+    Pendiente de validar con datos reales: tu liga exige esperar 7 días desde la compra para
+    poder revender un jugador, y limita la puja máxima real a "fondos disponibles + 25% del
+    valor de tu equipo" — en cuanto veamos la respuesta real del mercado de Futmondo afinamos
+    esto también.
+  </p>
 
   {% if ranked %}
   <table>
@@ -35,8 +43,15 @@
     </thead>
     <tbody>
       {% for p in ranked %}
-      <tr class="{{ 'highlight' if loop.index <= 3 }}">
-        <td data-label="Jugador">{{ p.name }}</td>
+      <tr class="{{ 'highlight' if (loop.index <= 3 and not p.team_limit_reached) else '' }} {{ 'status-sancionado' if p.team_limit_reached }}">
+        <td data-label="Jugador">
+          <div class="avatar avatar-sm">
+            {% if p.get('photo_url') %}<img src="{{ p.photo_url }}" alt="" onerror="this.remove()">{% endif %}
+            <span class="avatar-initials">{{ p.name[:2]|upper }}</span>
+          </div>
+          {{ p.name }}
+          {% if p.team_limit_reached %}<br><span class="tag-warn">🚫 ya tienes el máximo de {{ p.team }}</span>{% endif %}
+        </td>
         <td data-label="Pos.">{{ p.position }}</td>
         <td data-label="Equipo">{{ p.team }}</td>
         <td data-label="Precio actual">{{ p.price or '-' }}</td>

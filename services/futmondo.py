@@ -109,5 +109,6 @@ def normalize_roster(raw):
             "team": team_name or "?",
             "price": p.get("value") or p.get("clausule") or p.get("marketValue") or p.get("price"),
             "futmondo_player_id": p.get("id") or p.get("playerId"),
+            "photo_url": p.get("photo") or p.get("photoUrl") or p.get("image") or p.get("urlPhoto") or p.get("avatar"),
         })
     return normalized

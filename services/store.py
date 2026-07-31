@@ -58,6 +58,7 @@ def import_roster(normalized_players):
             "team": p["team"],
             "price": p.get("price"),
             "futmondo_player_id": p.get("futmondo_player_id"),
+            "photo_url": p.get("photo_url") or prev.get("photo_url"),
             "api_football_id": prev.get("api_football_id"),
             "api_football_team_id": prev.get("api_football_team_id"),
         })

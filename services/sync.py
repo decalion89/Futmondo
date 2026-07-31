@@ -18,7 +18,12 @@ def _resolve_player(client, player):
     match = matches[0]
     pid = match["player"]["id"]
     team_id = match["statistics"][0]["team"]["id"] if match.get("statistics") else None
-    store.update_player(player["id"], api_football_id=pid, api_football_team_id=team_id)
+    updates = {"api_football_id": pid, "api_football_team_id": team_id}
+    if not player.get("photo_url"):
+        photo = match["player"].get("photo")
+        if photo:
+            updates["photo_url"] = photo
+    store.update_player(player["id"], **updates)
     return pid, team_id
 
 

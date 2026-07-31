@@ -2,8 +2,23 @@
 de forma y calendario para priorizar altas por relación puntos/precio, y
 señala qué jugadores de tu plantilla conviene vender.
 """
+import os
 from services import scoring
 from services.api_football import ApiFootballClient, ApiFootballError
+
+DEFAULT_MAX_SAME_TEAM = 2  # normas de "Sparka grande y libre!!"; ajustable por si tu liga usa otro límite
+
+
+def _max_same_team():
+    value = os.environ.get("FUTMONDO_MAX_SAME_TEAM")
+    return int(value) if value else DEFAULT_MAX_SAME_TEAM
+
+
+def _team_counts(squad):
+    counts = {}
+    for p in squad:
+        counts[p.get("team")] = counts.get(p.get("team"), 0) + 1
+    return counts
 
 
 def _score_candidate(client, standings, name, team_name, position):
@@ -60,14 +75,17 @@ def _score_candidate(client, standings, name, team_name, position):
         "penalty_taker": penalty_taker,
         "low_motivation": motivation < 1.0,
         "next_rival": next_fixture["rival"] if next_fixture else None,
+        "photo_url": match["player"].get("photo"),
     }
 
 
-def rank_market(market_listings, benchmark_value=scoring.DEFAULT_VALUE_BENCHMARK):
+def rank_market(market_listings, benchmark_value=scoring.DEFAULT_VALUE_BENCHMARK, squad=None):
     """Puntúa cada jugador del mercado, lo ordena por puntos-por-millón
     (mejor relación calidad/precio primero) y calcula hasta qué puja
     máxima compensaría pagar, comparado con `benchmark_value` (normalmente
-    la relación puntos/precio media de tu propia plantilla)."""
+    la relación puntos/precio media de tu propia plantilla). También marca
+    los candidatos que no podrías fichar por el límite de jugadores del
+    mismo equipo real que permite tu liga."""
     client = ApiFootballClient()
     if not client.enabled:
         return [], ["Falta configurar API_FOOTBALL_KEY para analizar el mercado"]
@@ -78,6 +96,9 @@ def rank_market(market_listings, benchmark_value=scoring.DEFAULT_VALUE_BENCHMARK
     except ApiFootballError as e:
         standings = {}
         errors.append(str(e))
+
+    team_counts = _team_counts(squad or [])
+    max_same_team = _max_same_team()
 
     ranked = []
     for listing in market_listings:
@@ -91,15 +112,18 @@ def rank_market(market_listings, benchmark_value=scoring.DEFAULT_VALUE_BENCHMARK
         worth_bidding_more = (
             max_bid is not None and current_price is not None and current_price < max_bid
         )
+        team_limit_reached = team_counts.get(listing.get("team"), 0) >= max_same_team
         ranked.append({
             **listing,
             **info,
+            "photo_url": listing.get("photo_url") or info.get("photo_url"),
             "value": value,
             "max_bid": max_bid,
             "worth_bidding_more": worth_bidding_more,
+            "team_limit_reached": team_limit_reached,
         })
 
-    ranked.sort(key=lambda r: (r["value"] is None, -(r["value"] or 0)))
+    ranked.sort(key=lambda r: (r["team_limit_reached"], r["value"] is None, -(r["value"] or 0)))
     return ranked, errors
 
 
