@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mi plantilla Futmondo</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header>
+    <h1>Mi plantilla</h1>
+    <form action="{{ url_for('sync') }}" method="post">
+      <button type="submit" {{ 'disabled' if not api_enabled }}>Actualizar datos (lesiones/sanciones/calendario)</button>
+    </form>
+  </header>
+
+  {% if not api_enabled %}
+    <div class="banner">
+      No has configurado <code>API_FOOTBALL_KEY</code> en el archivo <code>.env</code>.
+      Puedes gestionar tu plantilla igualmente, pero no verás lesiones, sanciones ni
+      próximos rivales hasta que añadas una clave. Consulta el README.
+    </div>
+  {% endif %}
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <ul class="flashes">
+        {% for category, msg in messages %}
+          <li class="{{ category }}">{{ msg }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
+
+  <table>
+    <thead>
+      <tr>
+        <th>Jugador</th>
+        <th>Pos.</th>
+        <th>Equipo</th>
+        <th>Precio</th>
+        <th>Estado</th>
+        <th>Próximo rival</th>
+        <th>Dificultad rival</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in players %}
+      <tr class="status-{{ p.get('status', 'sin-datos') }}">
+        <td>{{ p.name }}</td>
+        <td>{{ p.position }}</td>
+        <td>{{ p.team }}</td>
+        <td>{{ p.price or '-' }}</td>
+        <td>
+          {% if p.get('status') == 'sancionado' %} 🟥 Sancionado
+          {% elif p.get('status') == 'lesionado' %} 🤕 Lesionado{% if p.get('reason') %} ({{ p.get('reason') }}){% endif %}
+          {% elif p.get('status') == 'duda' %} ⚠️ Duda{% if p.get('reason') %} ({{ p.get('reason') }}){% endif %}
+          {% elif p.get('status') == 'ok' %} ✅ Disponible
+          {% else %} — sin sincronizar
+          {% endif %}
+        </td>
+        <td>
+          {% if p.get('rival') %}
+            {{ 'vs' if p.get('is_home') else '@' }} {{ p.get('rival') }}
+          {% else %} — {% endif %}
+        </td>
+        <td>
+          {% set diff = p.get('fixture_difficulty') %}
+          {% if diff is not none %}
+            {{ diff }} goles/partido encajados
+            {% if diff < 1.0 %} (difícil){% elif diff > 1.5 %} (fácil){% endif %}
+          {% else %} — {% endif %}
+        </td>
+        <td>
+          <form action="{{ url_for('remove_player', player_id=p.id) }}" method="post" onsubmit="return confirm('¿Eliminar {{ p.name }}?')">
+            <button type="submit" class="danger">Eliminar</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8">Todavía no has añadido jugadores.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Añadir jugador</h2>
+  <form action="{{ url_for('add_player') }}" method="post" class="add-form">
+    <input type="text" name="name" placeholder="Nombre" required>
+    <select name="position" required>
+      {% for pos in positions %}
+        <option value="{{ pos }}">{{ pos }}</option>
+      {% endfor %}
+    </select>
+    <input type="text" name="team" placeholder="Equipo (ej. Real Madrid)" required>
+    <input type="text" name="price" placeholder="Precio (opcional)">
+    <button type="submit">Añadir</button>
+  </form>
+</body>
+</html>
