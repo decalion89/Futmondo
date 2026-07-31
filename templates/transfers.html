@@ -29,7 +29,7 @@
       <tr>
         <th>Jugador</th><th>Pos.</th><th>Equipo</th><th>Precio actual</th>
         <th>Rating</th><th>Puntuación</th><th>Valor (pts/M€)</th>
-        <th>Puja máxima recomendada</th><th>Próximo rival</th>
+        <th>Puja máxima recomendada</th><th>Próximo rival</th><th title="Partidos en los últimos 10 días, todas las competiciones">Fatiga</th>
       </tr>
     </thead>
     <tbody>
@@ -51,6 +51,11 @@
           {% else %} — {% endif %}
         </td>
         <td data-label="Próximo rival">{{ p.next_rival or '—' }}</td>
+        <td data-label="Fatiga">
+          {% if p.congestion_count and p.congestion_count >= 2 %}
+            <span class="tag-warn">⚡ {{ p.congestion_count }} en 10 días</span>
+          {% else %} — {% endif %}
+        </td>
       </tr>
       {% endfor %}
     </tbody>

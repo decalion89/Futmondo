@@ -34,12 +34,21 @@ def _score_candidate(client, standings, name, team_name, position):
     except ApiFootballError:
         fixtures = []
     swing = scoring.fixture_swing(fixtures, team_id, standings)
-    score = scoring.player_score(position, rating, starter_rate, swing)
+
+    congestion_count = None
+    try:
+        recent_fixtures = client.get_recent_fixtures_all_competitions(team_id)
+        congestion_count = scoring.fixture_congestion(recent_fixtures)["count"]
+    except ApiFootballError:
+        pass
+
+    score = scoring.player_score(position, rating, starter_rate, swing, congestion_count)
     next_fixture = swing["fixtures"][0] if swing["fixtures"] else None
     return {
         "rating": rating,
         "starter_rate": starter_rate,
         "score": score,
+        "congestion_count": congestion_count,
         "next_rival": next_fixture["rival"] if next_fixture else None,
     }
 

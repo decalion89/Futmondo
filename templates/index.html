@@ -105,6 +105,12 @@
         </div>
         {% endif %}
 
+        {% if p.get('congestion_count') and p.get('congestion_count') >= 2 %}
+        <span class="badge badge-warn" title="{{ p.get('congestion_competitions')|join(', ') }}">
+          ⚡ {{ p.get('congestion_count') }} partidos en {{ 10 }} días
+        </span>
+        {% endif %}
+
         <form action="{{ url_for('remove_player', player_id=p.id) }}" method="post" onsubmit="return confirm('¿Eliminar {{ p.name }}?')">
           <button type="submit" class="btn btn-danger btn-sm" title="Eliminar">✕</button>
         </form>

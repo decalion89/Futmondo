@@ -3,11 +3,14 @@
 Objetivo: maximizar puntos por jornada (elección de capitán/alineación) y
 maximizar puntos por euro gastado (decisiones de fichaje/venta). Es una
 heurística transparente, no una predicción exacta — pondera datos objetivos
-(forma reciente, calendario real, minutos jugados) que tú no puedes revisar
-partido a partido para 15+ jugadores.
+(forma reciente, calendario real, minutos jugados, congestión de calendario
+por Champions/Europa League/Copa del Rey) que tú no puedes revisar partido
+a partido para 15+ jugadores.
 """
+from datetime import datetime, timedelta, timezone
 
 HORIZON = 5  # nº de próximos partidos que miramos para medir la racha de calendario
+FATIGUE_WINDOW_DAYS = 10  # ventana para medir congestión de calendario (todas las competiciones)
 
 
 def fixture_swing(fixtures, team_id, standings, n=HORIZON):
@@ -39,7 +42,45 @@ def fixture_swing(fixtures, team_id, standings, n=HORIZON):
     }
 
 
-def player_score(position, rating, starter_rate, swing):
+def fixture_congestion(recent_fixtures, reference_date=None, window_days=FATIGUE_WINDOW_DAYS):
+    """Cuenta partidos jugados en CUALQUIER competición (Liga, Champions,
+    Europa League, Copa del Rey...) en los últimos `window_days` días, para
+    detectar riesgo de cansancio/rotación por calendario apretado que un
+    vistazo solo al calendario de Liga no muestra."""
+    reference_date = reference_date or datetime.now(timezone.utc)
+    cutoff = reference_date - timedelta(days=window_days)
+    played = []
+    for fx in recent_fixtures or []:
+        try:
+            played_at = datetime.fromisoformat(fx["fixture"]["date"].replace("Z", "+00:00"))
+        except (KeyError, ValueError, TypeError):
+            continue
+        if cutoff <= played_at <= reference_date:
+            played.append({
+                "date": fx["fixture"]["date"],
+                "competition": (fx.get("league") or {}).get("name"),
+            })
+    competitions = sorted({m["competition"] for m in played if m["competition"]})
+    return {"count": len(played), "competitions": competitions, "matches": played}
+
+
+def fatigue_factor(congestion_count):
+    """Penalización por acumulación de partidos en poco tiempo. Jugar 3+
+    partidos en ~10 días (típico de una semana con Champions/Europa/Copa de
+    por medio) es exigente incluso para plantillas largas; 2 es manejable
+    pero con algo más de riesgo de rotación puntual."""
+    if congestion_count is None:
+        return 1.0
+    if congestion_count >= 4:
+        return 0.82
+    if congestion_count == 3:
+        return 0.9
+    if congestion_count == 2:
+        return 0.97
+    return 1.0
+
+
+def player_score(position, rating, starter_rate, swing, congestion_count=None):
     """Puntuación relativa para comparar tus propios jugadores disponibles
     entre sí (no es una predicción de puntos Futmondo)."""
     base = rating if rating is not None else 6.0
@@ -53,7 +94,8 @@ def player_score(position, rating, starter_rate, swing):
         if gf is not None:
             fixture_factor = 1.15 - min(gf, 2.5) * 0.15
     reliability = 0.7 + 0.3 * (starter_rate if starter_rate is not None else 0.5)
-    return round(base * fixture_factor * reliability, 2)
+    fatigue = fatigue_factor(congestion_count)
+    return round(base * fixture_factor * reliability * fatigue, 2)
 
 
 def parse_price(price):

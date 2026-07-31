@@ -43,6 +43,7 @@ def sync_all():
         errors.append(f"No se pudo leer la clasificación: {e}")
 
     team_injuries_cache = {}
+    team_congestion_cache = {}
 
     for player in players:
         try:
@@ -54,6 +55,14 @@ def sync_all():
             if team_id not in team_injuries_cache:
                 team_injuries_cache[team_id] = client.get_team_injuries(team_id)
             injuries = team_injuries_cache[team_id]
+
+            if team_id not in team_congestion_cache:
+                try:
+                    recent_fixtures = client.get_recent_fixtures_all_competitions(team_id)
+                    team_congestion_cache[team_id] = scoring.fixture_congestion(recent_fixtures)
+                except ApiFootballError:
+                    team_congestion_cache[team_id] = {"count": None, "competitions": []}
+            congestion = team_congestion_cache[team_id]
 
             status = "ok"
             reason = None
@@ -83,7 +92,10 @@ def sync_all():
             except (ApiFootballError, TypeError, ValueError):
                 pass
 
-            score = scoring.player_score(player["position"], rating, starter_rate, swing) if status == "ok" else None
+            score = (
+                scoring.player_score(player["position"], rating, starter_rate, swing, congestion.get("count"))
+                if status == "ok" else None
+            )
             value = scoring.value_for_money(score, player.get("price")) if status == "ok" else None
 
             cache[player["id"]] = {
@@ -95,6 +107,8 @@ def sync_all():
                 "fixture_difficulty": swing["avg_goals_against_rivals"],
                 "next_fixtures": swing["fixtures"],
                 "rating": rating,
+                "congestion_count": congestion.get("count"),
+                "congestion_competitions": congestion.get("competitions"),
                 "score": score,
                 "value": value,
                 "updated_at": datetime.datetime.utcnow().isoformat(),

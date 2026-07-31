@@ -6,6 +6,7 @@ recomendación de la app está mal.
 """
 import sys
 import os
+from datetime import datetime, timedelta, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -123,3 +124,46 @@ def test_max_recommended_bid_none_without_data():
     assert scoring.max_recommended_bid(None, 0.4) is None
     assert scoring.max_recommended_bid(8.0, None) is None
     assert scoring.max_recommended_bid(8.0, 0) is None
+
+
+def _fixture_at(days_ago, competition="LaLiga"):
+    date = (datetime.now(timezone.utc) - timedelta(days=days_ago)).isoformat()
+    return {"fixture": {"date": date}, "league": {"name": competition}}
+
+
+def test_fixture_congestion_counts_matches_in_window():
+    fixtures = [
+        _fixture_at(1, "LaLiga"),
+        _fixture_at(4, "Champions League"),
+        _fixture_at(8, "Copa del Rey"),
+        _fixture_at(15, "LaLiga"),  # fuera de la ventana de 10 días
+    ]
+    result = scoring.fixture_congestion(fixtures)
+    assert result["count"] == 3
+    assert result["competitions"] == ["Champions League", "Copa del Rey", "LaLiga"]
+
+
+def test_fixture_congestion_empty_without_data():
+    result = scoring.fixture_congestion([])
+    assert result["count"] == 0
+    assert result["competitions"] == []
+
+
+def test_fixture_congestion_ignores_malformed_entries():
+    result = scoring.fixture_congestion([{"fixture": {}}, {}])
+    assert result["count"] == 0
+
+
+def test_fatigue_factor_penalizes_congested_calendar():
+    assert scoring.fatigue_factor(None) == 1.0
+    assert scoring.fatigue_factor(1) == 1.0
+    assert scoring.fatigue_factor(2) < 1.0
+    assert scoring.fatigue_factor(3) < scoring.fatigue_factor(2)
+    assert scoring.fatigue_factor(4) < scoring.fatigue_factor(3)
+
+
+def test_player_score_penalizes_fixture_congestion():
+    swing = {"avg_goals_against_rivals": None, "avg_goals_for_rivals": None}
+    fresh = scoring.player_score("DEL", rating=7.0, starter_rate=1.0, swing=swing, congestion_count=1)
+    congested = scoring.player_score("DEL", rating=7.0, starter_rate=1.0, swing=swing, congestion_count=4)
+    assert congested < fresh

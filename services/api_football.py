@@ -89,6 +89,16 @@ class ApiFootballClient:
             "season": self.season,
         })
 
+    def get_recent_fixtures_all_competitions(self, team_id, count=10):
+        """Últimos `count` partidos de un equipo en CUALQUIER competición
+        (Liga, Champions, Europa League, Copa del Rey...) — sin filtrar por
+        `league`, para poder medir la congestión real de calendario, no solo
+        los partidos de Liga."""
+        return self._cached_get("fixtures", {
+            "team": team_id,
+            "last": count,
+        }, ttl=cache.DEFAULT_TTL)
+
     def get_player_statistics(self, player_id, team_id=None):
         """Estadísticas de la temporada para un jugador (rating medio, titularidades...)."""
         params = {"id": player_id, "league": self.league_id, "season": self.season}
