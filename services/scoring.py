@@ -13,15 +13,37 @@ HORIZON = 5  # nº de próximos partidos que miramos para medir la racha de cale
 FATIGUE_WINDOW_DAYS = 10  # ventana para medir congestión de calendario (todas las competiciones)
 
 
+def team_form_factor(standings_row):
+    """Racha reciente del equipo (últimos resultados W/D/L) que API-Football
+    ya incluye en la clasificación (campo `form`) — no cuesta ninguna
+    llamada extra y capta algo que la media de toda la temporada no ve: un
+    equipo puede tener buena media anual pero estar en mal momento ahora
+    mismo (o al revés). Devuelve un factor entre ~0.93 (mala racha) y
+    ~1.07 (buena racha)."""
+    if not standings_row:
+        return 1.0
+    form = (standings_row.get("form") or "")[-5:]
+    if not form:
+        return 1.0
+    points = sum({"W": 3, "D": 1, "L": 0}.get(c, 0) for c in form)
+    ratio = points / (len(form) * 3)
+    return round(0.93 + ratio * 0.14, 3)
+
+
 def fixture_swing(fixtures, team_id, standings, n=HORIZON):
     """Dificultad media de los próximos `n` partidos de un equipo, separada
     en dos lecturas porque afecta distinto según la posición:
     - avg_goals_against_rivals: goles que suele encajar el rival (alto = fácil marcarle, bueno para DEL/CEN)
     - avg_goals_for_rivals: goles que suele marcar el rival (alto = peligroso para nuestra portería, malo para DEF/POR)
+
+    También calcula `next_rival_form_factor`: la racha reciente (no solo la
+    media de temporada) del rival del PRÓXIMO partido concretamente, que es
+    el que más peso debería tener en la decisión de esta jornada.
     """
     upcoming = (fixtures or [])[:n]
     attack_vals, defense_vals, detail = [], [], []
-    for fx in upcoming:
+    next_rival_form_factor = 1.0
+    for i, fx in enumerate(upcoming):
         teams = fx["teams"]
         is_home = teams["home"]["id"] == team_id
         rival_team = teams["away"] if is_home else teams["home"]
@@ -30,6 +52,8 @@ def fixture_swing(fixtures, team_id, standings, n=HORIZON):
             played = max(rival_row["all"]["played"], 1)
             attack_vals.append(rival_row["all"]["goals"]["against"] / played)
             defense_vals.append(rival_row["all"]["goals"]["for"] / played)
+            if i == 0:
+                next_rival_form_factor = team_form_factor(rival_row)
         detail.append({
             "rival": rival_team["name"],
             "is_home": is_home,
@@ -38,6 +62,7 @@ def fixture_swing(fixtures, team_id, standings, n=HORIZON):
     return {
         "avg_goals_against_rivals": round(sum(attack_vals) / len(attack_vals), 2) if attack_vals else None,
         "avg_goals_for_rivals": round(sum(defense_vals) / len(defense_vals), 2) if defense_vals else None,
+        "next_rival_form_factor": next_rival_form_factor,
         "fixtures": detail,
     }
 
@@ -167,6 +192,11 @@ def player_score(
         gf = swing.get("avg_goals_for_rivals")
         if gf is not None:
             fixture_factor = 1.15 - min(gf, 2.5) * 0.15
+    # Un rival en buena racha reciente es más peligroso de lo que dice su
+    # media anual (y viceversa), nos beneficie el partido en la dirección
+    # que sea: por eso se invierte (racha rival alta = peor para nosotros).
+    next_rival_form = swing.get("next_rival_form_factor", 1.0) or 1.0
+    fixture_factor *= (2.0 - next_rival_form)
     reliability = 0.7 + 0.3 * (starter_rate if starter_rate is not None else 0.5)
     fatigue = fatigue_factor(congestion_count)
     penalty_bonus = 1.05 if penalty_taker else 1.0

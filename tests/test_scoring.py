@@ -252,3 +252,42 @@ def test_budget_concentration_computes_share_of_top_players():
 def test_budget_concentration_none_without_prices():
     assert scoring.budget_concentration([]) is None
     assert scoring.budget_concentration([None, None]) is None
+
+
+def test_team_form_factor_rewards_winning_streak():
+    hot = scoring.team_form_factor({"form": "WWWWW"})
+    cold = scoring.team_form_factor({"form": "LLLLL"})
+    mixed = scoring.team_form_factor({"form": "WDLWD"})
+    assert hot > mixed > cold
+    assert hot == 1.07
+    assert cold == 0.93
+
+
+def test_team_form_factor_defaults_without_data():
+    assert scoring.team_form_factor(None) == 1.0
+    assert scoring.team_form_factor({}) == 1.0
+    assert scoring.team_form_factor({"form": ""}) == 1.0
+
+
+def test_fixture_swing_includes_next_rival_form():
+    standings = {
+        "2": {"all": {"played": 10, "goals": {"for": 10, "against": 10}}, "form": "WWWWW"},
+    }
+    fixtures = [_fixture_at_days(0, home_id=2, away_id=1)]
+    swing = scoring.fixture_swing(fixtures, team_id=1, standings=standings)
+    assert swing["next_rival_form_factor"] == 1.07
+
+
+def _fixture_at_days(days_from_now, home_id, away_id):
+    return {
+        "teams": {"home": {"id": home_id, "name": "Local"}, "away": {"id": away_id, "name": "Visitante"}},
+        "fixture": {"date": "2026-08-20T20:00:00+00:00"},
+    }
+
+
+def test_player_score_penalizes_rival_in_good_form():
+    swing_hot_rival = {"avg_goals_against_rivals": None, "avg_goals_for_rivals": None, "next_rival_form_factor": 1.07}
+    swing_cold_rival = {"avg_goals_against_rivals": None, "avg_goals_for_rivals": None, "next_rival_form_factor": 0.93}
+    vs_hot = scoring.player_score("DEL", rating=7.0, starter_rate=1.0, swing=swing_hot_rival)
+    vs_cold = scoring.player_score("DEL", rating=7.0, starter_rate=1.0, swing=swing_cold_rival)
+    assert vs_cold > vs_hot
