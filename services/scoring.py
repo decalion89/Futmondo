@@ -30,6 +30,26 @@ def team_form_factor(standings_row):
     return round(0.93 + ratio * 0.14, 3)
 
 
+MIN_SPLIT_GAMES = 3  # partidos mínimos en casa/fuera antes de fiarnos de ese desglose
+
+
+def _rival_split_goals(rival_row, rival_plays_home):
+    """Goles a favor/en contra del rival, usando su desglose como local o
+    visitante (lo que le toque en ese partido concreto) en vez de la media
+    combinada de toda la temporada — un equipo puede ser sólido en general
+    pero mucho más flojo fuera de casa, por ejemplo. Con muy pocos partidos
+    en ese desglose (inicio de temporada), cae de vuelta a la media general
+    para no sacar conclusiones de 1-2 partidos."""
+    split_key = "home" if rival_plays_home else "away"
+    split = rival_row.get(split_key) or {}
+    played = split.get("played") or 0
+    if played < MIN_SPLIT_GAMES:
+        split = rival_row.get("all") or {}
+        played = max(split.get("played", 1), 1)
+    goals = split.get("goals") or {}
+    return (goals.get("against") or 0) / played, (goals.get("for") or 0) / played
+
+
 def fixture_swing(fixtures, team_id, standings, n=HORIZON):
     """Dificultad media de los próximos `n` partidos de un equipo, separada
     en dos lecturas porque afecta distinto según la posición:
@@ -49,9 +69,10 @@ def fixture_swing(fixtures, team_id, standings, n=HORIZON):
         rival_team = teams["away"] if is_home else teams["home"]
         rival_row = standings.get(str(rival_team["id"])) if standings else None
         if rival_row:
-            played = max(rival_row["all"]["played"], 1)
-            attack_vals.append(rival_row["all"]["goals"]["against"] / played)
-            defense_vals.append(rival_row["all"]["goals"]["for"] / played)
+            rival_plays_home = not is_home  # si nosotros jugamos fuera, el rival juega en casa
+            goals_against, goals_for = _rival_split_goals(rival_row, rival_plays_home)
+            attack_vals.append(goals_against)
+            defense_vals.append(goals_for)
             if i == 0:
                 next_rival_form_factor = team_form_factor(rival_row)
         detail.append({

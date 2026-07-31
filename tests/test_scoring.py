@@ -67,6 +67,37 @@ def test_fixture_swing_computes_rival_averages():
     assert swing["fixtures"][0]["is_home"] is False
 
 
+def test_fixture_swing_uses_home_away_split_when_enough_games():
+    # El rival (id=2) es sólido en general pero mucho más flojo como
+    # visitante (le meten 3 goles/partido fuera vs 0.5 en casa). Nuestro
+    # equipo (id=1) juega en casa, así que el rival visita: debe usarse su
+    # desglose "away", no la media combinada.
+    standings = {
+        "2": {
+            "all": {"played": 10, "goals": {"for": 15, "against": 10}},
+            "home": {"played": 5, "goals": {"for": 10, "against": 2.5}},
+            "away": {"played": 5, "goals": {"for": 5, "against": 15}},
+        },
+    }
+    fixtures = [_fake_fixture(home_id=1, away_id=2)]
+    swing = scoring.fixture_swing(fixtures, team_id=1, standings=standings)
+    assert swing["avg_goals_against_rivals"] == 3.0  # 15/5, no 10/10=1.0 de la media combinada
+
+
+def test_fixture_swing_falls_back_to_combined_with_few_split_games():
+    # Solo 1 partido como visitante todavía: no nos fiamos del desglose,
+    # usamos la media combinada de toda la temporada.
+    standings = {
+        "2": {
+            "all": {"played": 10, "goals": {"for": 15, "against": 10}},
+            "away": {"played": 1, "goals": {"for": 0, "against": 5}},
+        },
+    }
+    fixtures = [_fake_fixture(home_id=1, away_id=2)]
+    swing = scoring.fixture_swing(fixtures, team_id=1, standings=standings)
+    assert swing["avg_goals_against_rivals"] == 1.0  # 10/10 de "all", no 5/1 de "away"
+
+
 def test_player_score_rewards_easy_fixture_for_forward():
     easy = {"avg_goals_against_rivals": 2.5, "avg_goals_for_rivals": None}
     hard = {"avg_goals_against_rivals": 0.5, "avg_goals_for_rivals": None}
