@@ -213,5 +213,20 @@ def sync():
     return redirect(url_for("dashboard"))
 
 
+@app.route('/health')
+def health():
+    return 'OK', 200
+
+@app.route('/status')
+def status():
+    players = store.load_squad()
+    cache = store.load_status_cache()
+    return {
+        'players': len(players),
+        'cached': len(cache),
+        'api_football_enabled': ApiFootballClient().enabled,
+        'futmondo_enabled': FutmondoClient().enabled,
+    }, 200
+
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
