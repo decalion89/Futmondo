@@ -75,6 +75,17 @@ class ApiFootballClient:
         })
         return fixtures[0] if fixtures else None
 
+    def get_player_statistics(self, player_id, team_id=None):
+        """Estadísticas de la temporada para un jugador (rating medio, titularidades...)."""
+        params = {"id": player_id, "league": self.league_id, "season": self.season}
+        if team_id:
+            params["team"] = team_id
+        results = self._get("players", params)
+        if not results:
+            return None
+        stats = results[0].get("statistics") or []
+        return stats[0] if stats else None
+
     def get_standings(self):
         response = self._get("standings", {
             "league": self.league_id,

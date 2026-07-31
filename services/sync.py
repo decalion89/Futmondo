@@ -22,6 +22,23 @@ def _resolve_player(client, player):
     return pid, team_id
 
 
+def _compute_score(position, rating, starter_rate, goals_against_avg, goals_for_avg):
+    """Puntuación heurística para orientar capitán/alineación: forma reciente
+    ajustada por lo favorable que sea el rival según la posición, y penalizada
+    si el jugador no suele ser titular. No es una predicción exacta, es una
+    guía relativa entre tus propios jugadores disponibles."""
+    base = rating if rating is not None else 6.0
+    fixture_factor = 1.0
+    if position in ("DEL", "CEN"):
+        if goals_against_avg is not None:
+            fixture_factor = 0.85 + min(goals_against_avg, 2.5) * 0.15
+    elif position in ("DEF", "POR"):
+        if goals_for_avg is not None:
+            fixture_factor = 1.15 - min(goals_for_avg, 2.5) * 0.15
+    reliability = 0.7 + 0.3 * (starter_rate if starter_rate is not None else 0.5)
+    return round(base * fixture_factor * reliability, 2)
+
+
 def sync_all():
     """Actualiza el cache de estado (lesión/sanción/próximo rival/forma) para toda la plantilla.
 
@@ -68,7 +85,7 @@ def sync_all():
 
             fixture = client.get_next_fixture(team_id)
             rival, is_home, fixture_date = None, None, None
-            difficulty = None
+            goals_against_avg, goals_for_avg = None, None
             if fixture:
                 teams = fixture["teams"]
                 is_home = teams["home"]["id"] == team_id
@@ -78,7 +95,22 @@ def sync_all():
                 rival_row = standings.get(rival_team["id"])
                 if rival_row:
                     played = max(rival_row["all"]["played"], 1)
-                    difficulty = round(rival_row["all"]["goals"]["against"] / played, 2)
+                    goals_against_avg = round(rival_row["all"]["goals"]["against"] / played, 2)
+                    goals_for_avg = round(rival_row["all"]["goals"]["for"] / played, 2)
+
+            rating, starter_rate = None, None
+            try:
+                stats = client.get_player_statistics(pid, team_id)
+                if stats:
+                    games = stats.get("games") or {}
+                    rating = float(games["rating"]) if games.get("rating") else None
+                    appearences = games.get("appearences") or 0
+                    lineups = games.get("lineups") or 0
+                    starter_rate = (lineups / appearences) if appearences else None
+            except (ApiFootballError, TypeError, ValueError):
+                pass
+
+            score = _compute_score(player["position"], rating, starter_rate, goals_against_avg, goals_for_avg)
 
             cache[player["id"]] = {
                 "status": status,
@@ -86,7 +118,9 @@ def sync_all():
                 "rival": rival,
                 "is_home": is_home,
                 "fixture_date": fixture_date,
-                "fixture_difficulty": difficulty,
+                "fixture_difficulty": goals_against_avg,
+                "rating": rating,
+                "score": score if status == "ok" else None,
                 "updated_at": datetime.datetime.utcnow().isoformat(),
             }
         except ApiFootballError as e:

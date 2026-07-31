@@ -53,12 +53,38 @@ def dashboard():
     order = {"sancionado": 0, "lesionado": 1, "duda": 2, "ok": 3}
     rows.sort(key=lambda r: order.get(r.get("status", "ok"), 3))
 
+    captain = max(
+        (r for r in rows if r.get("status") == "ok" and r.get("score") is not None),
+        key=lambda r: r["score"],
+        default=None,
+    )
+
     return render_template(
         "index.html",
         players=rows,
         api_enabled=api_enabled,
         futmondo_enabled=futmondo_enabled,
         positions=store.POSITIONS,
+        captain=captain,
+    )
+
+
+@app.route("/mercado")
+def market():
+    client = FutmondoClient()
+    listings, error, raw = [], None, None
+    if client.enabled:
+        try:
+            raw = client.get_market()
+            listings = normalize_roster(raw)
+        except FutmondoError as e:
+            error = str(e)
+    return render_template(
+        "market.html",
+        listings=listings,
+        error=error,
+        futmondo_enabled=client.enabled,
+        raw_debug=raw if not listings else None,
     )
 
 

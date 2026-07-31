@@ -44,6 +44,8 @@ tr.status-duda { background: #fff8d6; }
   margin-top: 1rem;
 }
 
+.banner.captain { background: #fff4d6; border-color: #e8c96a; font-weight: 600; }
+
 .flashes { list-style: none; padding: 0; margin: 1rem 0; }
 .flashes li { padding: 0.5rem 0.75rem; border-radius: 6px; margin-bottom: 0.4rem; }
 .flashes li.ok { background: #e3f8e3; }

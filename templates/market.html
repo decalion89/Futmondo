@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mercado - Futmondo Manager</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+  <meta name="theme-color" content="#1e7a34">
+</head>
+<body>
+  <header>
+    <h1>Mercado</h1>
+    <a href="{{ url_for('dashboard') }}">&larr; Volver a mi plantilla</a>
+  </header>
+
+  {% if not futmondo_enabled %}
+    <div class="banner">
+      Configura <code>FUTMONDO_TOKEN</code>/<code>FUTMONDO_USER_ID</code> en tu
+      <code>.env</code> para ver el mercado en vivo (ver README).
+    </div>
+  {% elif error %}
+    <div class="banner">Error consultando el mercado: {{ error }}</div>
+  {% elif raw_debug %}
+    <div class="banner">
+      Se conectó con Futmondo pero no reconocí la forma de los jugadores en
+      venta. Aquí tienes la respuesta cruda para ajustar el mapeo:
+      <pre>{{ raw_debug }}</pre>
+    </div>
+  {% endif %}
+
+  <table>
+    <thead>
+      <tr>
+        <th>Jugador</th>
+        <th>Pos.</th>
+        <th>Equipo</th>
+        <th>Precio</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in listings %}
+      <tr>
+        <td>{{ p.name }}</td>
+        <td>{{ p.position }}</td>
+        <td>{{ p.team }}</td>
+        <td>{{ p.price or '-' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4">Sin jugadores en el mercado ahora mismo (o pendiente de sincronizar).</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>

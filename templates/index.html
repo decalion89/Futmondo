@@ -20,6 +20,7 @@
   <header>
     <h1>Mi plantilla</h1>
     <div class="actions">
+      <a href="{{ url_for('market') }}">Ver mercado</a>
       <form action="{{ url_for('import_futmondo') }}" method="post">
         <button type="submit" {{ 'disabled' if not futmondo_enabled }}>Importar plantilla real de Futmondo</button>
       </form>
@@ -28,6 +29,13 @@
       </form>
     </div>
   </header>
+
+  {% if captain %}
+    <div class="banner captain">
+      ⭐ Capitán recomendado esta jornada: <strong>{{ captain.name }}</strong>
+      (puntuación {{ captain.score }}{% if captain.rival %}, {{ 'vs' if captain.is_home else '@' }} {{ captain.rival }}{% endif %})
+    </div>
+  {% endif %}
 
   {% if not futmondo_enabled %}
     <div class="banner">
@@ -64,6 +72,7 @@
         <th>Estado</th>
         <th>Próximo rival</th>
         <th>Dificultad rival</th>
+        <th title="Forma reciente ajustada por rival y titularidad">Puntuación</th>
         <th></th>
       </tr>
     </thead>
@@ -94,6 +103,7 @@
             {% if diff < 1.0 %} (difícil){% elif diff > 1.5 %} (fácil){% endif %}
           {% else %} — {% endif %}
         </td>
+        <td>{{ p.get('score') if p.get('score') is not none else '—' }}</td>
         <td>
           <form action="{{ url_for('remove_player', player_id=p.id) }}" method="post" onsubmit="return confirm('¿Eliminar {{ p.name }}?')">
             <button type="submit" class="danger">Eliminar</button>
