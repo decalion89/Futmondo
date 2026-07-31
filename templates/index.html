@@ -31,6 +31,10 @@
     </div>
   </header>
 
+  {% if last_sync %}
+    <p class="hint">Última actualización de datos: {{ last_sync }}</p>
+  {% endif %}
+
   {% if captain %}
     <div class="banner captain">
       ⭐ Capitán recomendado esta jornada: <strong>{{ captain.name }}</strong>

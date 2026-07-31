@@ -3,3 +3,5 @@ __pycache__/
 *.pyc
 .venv/
 data/status_cache.json
+data/api_cache.json
+data/futmondo_raw_roster.json

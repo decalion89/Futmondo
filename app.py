@@ -60,6 +60,8 @@ def dashboard():
         default=None,
     )
 
+    last_sync = max((r["updated_at"] for r in rows if r.get("updated_at")), default=None)
+
     return render_template(
         "index.html",
         players=rows,
@@ -67,6 +69,7 @@ def dashboard():
         futmondo_enabled=futmondo_enabled,
         positions=store.POSITIONS,
         captain=captain,
+        last_sync=last_sync,
     )
 
 

@@ -22,7 +22,7 @@ def fixture_swing(fixtures, team_id, standings, n=HORIZON):
         teams = fx["teams"]
         is_home = teams["home"]["id"] == team_id
         rival_team = teams["away"] if is_home else teams["home"]
-        rival_row = standings.get(rival_team["id"]) if standings else None
+        rival_row = standings.get(str(rival_team["id"])) if standings else None
         if rival_row:
             played = max(rival_row["all"]["played"], 1)
             attack_vals.append(rival_row["all"]["goals"]["against"] / played)
