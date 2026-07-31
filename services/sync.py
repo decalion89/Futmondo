@@ -87,6 +87,7 @@ def sync_all():
 
             rating, starter_rate = None, None
             yellow_cards, penalty_taker = None, False
+            goals, assists, appearences = None, None, None
             try:
                 stats = client.get_player_statistics(pid, team_id)
                 if stats:
@@ -98,6 +99,9 @@ def sync_all():
                     yellow_cards = (stats.get("cards") or {}).get("yellow")
                     penalty = stats.get("penalty") or {}
                     penalty_taker = scoring.is_penalty_taker(penalty.get("scored"), penalty.get("missed"))
+                    goals_stats = stats.get("goals") or {}
+                    goals = goals_stats.get("total")
+                    assists = goals_stats.get("assists")
             except (ApiFootballError, TypeError, ValueError):
                 pass
 
@@ -107,7 +111,7 @@ def sync_all():
             score = (
                 scoring.player_score(
                     player["position"], rating, starter_rate, swing, congestion.get("count"),
-                    motivation, penalty_taker,
+                    motivation, penalty_taker, goals, assists, appearences,
                 )
                 if status == "ok" else None
             )

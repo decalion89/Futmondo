@@ -26,6 +26,14 @@
       próximos rivales hasta que añadas una clave. Consulta el README.
     </div>
   {% endif %}
+  {% if concentration_warning %}
+    <div class="banner">
+      ⚠️ Tienes el {{ (concentration * 100)|round(0, 'floor')|int }}% del valor de tu
+      plantilla en solo 2 jugadores. Las guías de jugadores que han ganado estas ligas
+      recomiendan no pasar de un 40-50% en 1-2 estrellas, para no dejar el resto de la
+      plantilla débil (ver "Estrategia" al final).
+    </div>
+  {% endif %}
 
   <div class="stat-grid">
     <div class="stat-card">
@@ -157,6 +165,22 @@
       <input type="text" name="price" placeholder="Precio (opcional)">
       <button type="submit" class="btn btn-primary">Añadir</button>
     </form>
+  </details>
+
+  <details class="add-player">
+    <summary>📖 Estrategia: lo que dicen quienes ganan estas ligas</summary>
+    <ul class="hint" style="margin-top:0.75rem; padding-left:1.2rem;">
+      <li><strong>Los defensas/porteros valen más por gol que los delanteros</strong> (6 pts un gol de portero/defensa, 5 de centrocampista, 4 de delantero, en la convención habitual de estos juegos) — ya lo tenemos en cuenta en la puntuación: un central con llegada o buen juego aéreo suma más de lo que parece.</li>
+      <li><strong>Reparto de presupuesto</strong>: 40-50% en 1-2 jugadores clave, el resto en titulares regulares de equipos medios. Te avisamos arriba si tu plantilla está demasiado concentrada.</li>
+      <li><strong>Especulación de mercado</strong>: comprar barato antes de que suba de valor (un suplente que pasa a titular puede multiplicar su precio) y vender en el pico. Pendiente de afinar hasta ver el campo de tendencia de precio real de Futmondo.</li>
+      <li><strong>No subas cláusulas por rachas puntuales</strong> de jugadores irregulares — una o dos jornadas buenas no cambian el rendimiento habitual (regresión a la media).</li>
+      <li><strong>Las defensas suelen salir más baratas al inicio de mercado</strong> — buen momento para reforzar ahí antes de que suban.</li>
+    </ul>
+    <p class="hint" style="margin-top:0.5rem;">
+      Consejos sintetizados de guías de jugadores con experiencia en Comunio/Biwenger/Futmondo
+      (<a href="https://www.comuniate.com/noticias/3074/guia-definitiva-para-ganar-biwenger-comunio-y-cualquier-fantasy" target="_blank" rel="noopener">Comuniate</a>,
+      <a href="https://biwinner.pro/blog/diez-consejos-para-dominar-tu-liga" target="_blank" rel="noopener">Biwinner</a>) — no son reglas oficiales de Futmondo, es sentido común contrastado de la comunidad.
+    </p>
   </details>
 
   <script>

@@ -216,3 +216,39 @@ def test_player_score_rewards_penalty_taker_and_motivation():
     low_motivation = scoring.player_score("DEL", rating=7.0, starter_rate=1.0, swing=swing, motivation_factor=0.93)
     assert with_penalty > baseline
     assert low_motivation < baseline
+
+
+def test_attacking_output_bonus_weighs_defenders_more_than_forwards():
+    # Mismo gol/asistencia por partido, pero vale más en la puntuación de un
+    # defensa o portero que de un delantero (convención Fantasy: 6/5/4 pts).
+    bonus_def = scoring.attacking_output_bonus("DEF", goals=5, assists=2, appearences=20)
+    bonus_del = scoring.attacking_output_bonus("DEL", goals=5, assists=2, appearences=20)
+    assert bonus_def > bonus_del
+
+
+def test_attacking_output_bonus_zero_without_appearances():
+    assert scoring.attacking_output_bonus("DEL", goals=5, assists=2, appearences=0) == 0.0
+    assert scoring.attacking_output_bonus("DEL", goals=5, assists=2, appearences=None) == 0.0
+
+
+def test_player_score_rewards_goal_contribution():
+    swing = {"avg_goals_against_rivals": None, "avg_goals_for_rivals": None}
+    prolific_defender = scoring.player_score(
+        "DEF", rating=6.5, starter_rate=1.0, swing=swing, goals=6, assists=3, appearences=25,
+    )
+    quiet_defender = scoring.player_score(
+        "DEF", rating=6.5, starter_rate=1.0, swing=swing, goals=0, assists=0, appearences=25,
+    )
+    assert prolific_defender > quiet_defender
+
+
+def test_budget_concentration_computes_share_of_top_players():
+    # 2 jugadores de 10M sobre un total de 20M -> 100% concentrado en ellos
+    assert scoring.budget_concentration([10, 10], top_n=2) == 1.0
+    # 15M en los 2 más caros sobre 20M totales -> 75%
+    assert scoring.budget_concentration([10, 5, 3, 2], top_n=2) == 0.75
+
+
+def test_budget_concentration_none_without_prices():
+    assert scoring.budget_concentration([]) is None
+    assert scoring.budget_concentration([None, None]) is None

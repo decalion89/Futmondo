@@ -129,10 +129,35 @@ def is_penalty_taker(penalty_scored, penalty_missed):
     return bool((penalty_scored or 0) + (penalty_missed or 0) > 0)
 
 
-def player_score(position, rating, starter_rate, swing, congestion_count=None, motivation_factor=1.0, penalty_taker=False):
+# Peso por gol/asistencia según posición: en los sistemas de puntuación tipo
+# Fantasy (LaLiga Fantasy/Comunio/Biwenger/Futmondo comparten esta
+# convención) un gol de portero o defensa vale más puntos que uno de
+# delantero — un central contundente por arriba es un multiplicador de
+# puntos que el rating genérico no refleja. Fuente: guías de estrategia de
+# jugadores que han ganado estas ligas (ver README).
+ATTACKING_BONUS_WEIGHT = {"POR": 1.4, "DEF": 1.2, "CEN": 1.0, "DEL": 0.8}
+ATTACKING_BONUS_SCALE = 3.0
+
+
+def attacking_output_bonus(position, goals, assists, appearences):
+    """Pequeño extra de puntuación por aportación ofensiva (goles + 0.7 x
+    asistencias por partido), ponderado más para posiciones donde esa
+    aportación vale más puntos en el sistema de puntuación."""
+    if not appearences:
+        return 0.0
+    contributions_per_game = ((goals or 0) + 0.7 * (assists or 0)) / appearences
+    weight = ATTACKING_BONUS_WEIGHT.get(position, 1.0)
+    return round(contributions_per_game * weight * ATTACKING_BONUS_SCALE, 3)
+
+
+def player_score(
+    position, rating, starter_rate, swing, congestion_count=None, motivation_factor=1.0,
+    penalty_taker=False, goals=None, assists=None, appearences=None,
+):
     """Puntuación relativa para comparar tus propios jugadores disponibles
     entre sí (no es una predicción de puntos Futmondo)."""
     base = rating if rating is not None else 6.0
+    base += attacking_output_bonus(position, goals, assists, appearences)
     fixture_factor = 1.0
     if position in ("DEL", "CEN"):
         ga = swing.get("avg_goals_against_rivals")
@@ -176,6 +201,22 @@ def value_for_money(score, price):
     if price_millions <= 0:
         return None
     return round(score / price_millions, 3)
+
+
+CONCENTRATION_WARNING_THRESHOLD = 0.6  # % del valor total en pocos jugadores a partir del cual avisamos
+
+
+def budget_concentration(prices, top_n=2):
+    """% del valor total de la plantilla que está en tus `top_n` jugadores
+    más caros. Las guías de estrategia de ganadores de estas ligas
+    recomiendan dedicar un 40-50% del presupuesto a 1-2 jugadores clave y
+    repartir el resto — concentrar demasiado en pocas estrellas deja el
+    resto de la plantilla débil."""
+    values = sorted((v for v in prices if v), reverse=True)
+    total = sum(values)
+    if not total:
+        return None
+    return round(sum(values[:top_n]) / total, 3)
 
 
 DEFAULT_VALUE_BENCHMARK = 0.3  # pts/M€ de referencia si aún no hay datos de tu plantilla
