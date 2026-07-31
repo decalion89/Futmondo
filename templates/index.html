@@ -9,11 +9,23 @@
 <body>
   <header>
     <h1>Mi plantilla</h1>
-    <form action="{{ url_for('sync') }}" method="post">
-      <button type="submit" {{ 'disabled' if not api_enabled }}>Actualizar datos (lesiones/sanciones/calendario)</button>
-    </form>
+    <div class="actions">
+      <form action="{{ url_for('import_futmondo') }}" method="post">
+        <button type="submit" {{ 'disabled' if not futmondo_enabled }}>Importar plantilla real de Futmondo</button>
+      </form>
+      <form action="{{ url_for('sync') }}" method="post">
+        <button type="submit" {{ 'disabled' if not api_enabled }}>Actualizar datos (lesiones/sanciones/calendario)</button>
+      </form>
+    </div>
   </header>
 
+  {% if not futmondo_enabled %}
+    <div class="banner">
+      No has configurado <code>FUTMONDO_TOKEN</code>/<code>FUTMONDO_USER_ID</code> en el
+      <code>.env</code>. Sin eso tendrás que añadir jugadores a mano. Consulta el README
+      para capturarlos desde tu navegador en 2 minutos.
+    </div>
+  {% endif %}
   {% if not api_enabled %}
     <div class="banner">
       No has configurado <code>API_FOOTBALL_KEY</code> en el archivo <code>.env</code>.
@@ -84,7 +96,7 @@
     </tbody>
   </table>
 
-  <h2>Añadir jugador</h2>
+  <h2>Añadir jugador a mano (opcional, por si el import falla o quieres forzar algo)</h2>
   <form action="{{ url_for('add_player') }}" method="post" class="add-form">
     <input type="text" name="name" placeholder="Nombre" required>
     <select name="position" required>

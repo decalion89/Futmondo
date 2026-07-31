@@ -49,47 +49,68 @@ Abre http://localhost:5000 en el navegador.
 
 ## Uso
 
-1. Añade tus jugadores de Futmondo con el formulario ("Nombre", "Equipo",
-   posición y precio si quieres llevarlo apuntado).
+1. Importa tu plantilla real con el botón **"Importar plantilla real de
+   Futmondo"** (requiere configurar `FUTMONDO_TOKEN`/`FUTMONDO_USER_ID`,
+   ver más abajo). Si no lo configuras, puedes añadir jugadores a mano como
+   alternativa.
 2. Pulsa **"Actualizar datos"** para sincronizar con API-Football: verás
    quién está sancionado, lesionado, en duda, y contra quién juega la
    próxima jornada (con una pista de dificultad basada en los goles que
    encaja el rival).
-3. Repite la sincronización 1-2 veces por jornada (antes de que cierre el
-   mercado es el momento clave).
+3. Repite ambas sincronizaciones 1-2 veces por jornada (antes de que cierre
+   el mercado es el momento clave).
 
-Los datos de tu plantilla se guardan en `data/squad.json` — puedes editarlo
-a mano si prefieres, es un archivo de texto simple.
+Los datos de tu plantilla se guardan en `data/squad.json`.
 
-## (Opcional, avanzado) Conectar con la API interna de Futmondo
+## Importar tu plantilla real desde Futmondo (sin meter nada a mano)
 
-Futmondo no publica una API oficial, pero como cualquier app web hace
-peticiones a un backend que puedes ver tú mismo en el navegador. Si quieres
-automatizar también la lectura de tu plantilla directamente desde Futmondo
-(en vez de meterla a mano), estos son los pasos:
+Futmondo no tiene una API pública ni login automatizable por
+usuario/contraseña (su web bloquea peticiones automatizadas simples), así
+que la forma fiable de conectar tu cuenta es capturar tu **token de sesión**
+una vez desde el navegador — se basa en cómo lo hace
+[vicenteqa/futmondo-utils](https://github.com/vicenteqa/futmondo-utils), un
+proyecto de la comunidad que ya reversea esta misma API.
 
-1. Abre https://www.futmondo.com y haz login normalmente.
-2. Abre las herramientas de desarrollador del navegador (F12 o clic derecho
-   → Inspeccionar) y ve a la pestaña **Network** (Red).
-3. Filtra por "Fetch/XHR" y navega por tu plantilla, mercado, etc. dentro de
-   Futmondo.
-4. Verás peticiones a un dominio de API (algo como
-   `api.futmondo.com/...`). Haz clic en una y mira:
-   - La URL y el método (GET/POST).
-   - Los **headers**, en particular si hay un token de autenticación
-     (`Authorization`, una cookie de sesión, etc.).
-   - La respuesta JSON (ahí verás la forma de los datos: id de jugador,
-     precio, puntos...).
-5. **No pegues el token/cookie en el chat** — es una credencial de tu cuenta.
-   Guárdalo solo en tu `.env` local (por ejemplo como `FUTMONDO_TOKEN=...`),
-   que ya está en `.gitignore` y nunca se sube al repositorio.
-6. Con esa info puedo ayudarte a escribir un cliente
-   (`services/futmondo.py`) parecido al de `services/api_football.py` que
-   lea tu plantilla real automáticamente.
+1. Abre https://app.futmondo.com y haz login normalmente.
+2. Abre las herramientas de desarrollador (F12 o clic derecho →
+   Inspeccionar) → pestaña **Network** (Red) → filtra por "Fetch/XHR".
+3. Entra en "Mi equipo" dentro de Futmondo para que se dispare la petición.
+4. Busca una request **POST** a un dominio `api.futmondo.com` (por ejemplo
+   a `/1/userteam/roster`). Haz clic en ella y abre su **Payload / Request
+   body** (no los headers HTTP — el token va dentro del JSON que se envía).
+5. Verás algo con esta forma:
 
-Ten en cuenta que al ser una API no oficial puede cambiar sin aviso, y que
-solo debe usarse para leer tus propios datos (nunca para automatizar
-acciones masivas ni acceder a cuentas ajenas).
+   ```json
+   {
+     "header": { "token": "xxxxxxxx", "userid": "1234567" },
+     "query": { "championshipId": "7654321", "userteamId": "9876543" }
+   }
+   ```
+
+6. Copia esos 4 valores a tu `.env`:
+
+   ```
+   FUTMONDO_TOKEN=xxxxxxxx
+   FUTMONDO_USER_ID=1234567
+   FUTMONDO_CHAMPIONSHIP_ID=7654321
+   FUTMONDO_TEAM_ID=9876543
+   ```
+
+7. **No pegues estos valores en el chat conmigo ni los subas a git** —
+   equivalen a las llaves de tu sesión. El `.env` ya está en `.gitignore`.
+8. Reinicia la app y pulsa "Importar plantilla real de Futmondo".
+
+**Si la importación falla o no reconoce bien tus jugadores**: la respuesta
+de Futmondo no está documentada oficialmente, así que el mapeo de campos en
+`services/futmondo.py::normalize_roster` es una aproximación. La app guarda
+la respuesta cruda en `data/futmondo_raw_roster.json` — ábrelo, y si me
+compartes su estructura (sin el token) puedo ajustar el mapeo.
+
+**Notas importantes**:
+- El token es una API no oficial y puede caducar o dejar de funcionar si
+  Futmondo cambia algo — si eso pasa, vuelve a capturarlo (pasos de arriba).
+- Úsalo solo para leer tus propios datos, con una frecuencia razonable (1-2
+  veces por jornada), nunca para automatizar acciones masivas.
 
 ## Estructura del proyecto
 

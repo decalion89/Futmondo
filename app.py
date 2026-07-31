@@ -1,3 +1,4 @@
+import json
 import os
 from flask import Flask, render_template, request, redirect, url_for, flash
 from dotenv import load_dotenv
@@ -7,6 +8,7 @@ load_dotenv()
 from services import store
 from services.sync import sync_all
 from services.api_football import ApiFootballClient
+from services.futmondo import FutmondoClient, FutmondoError, normalize_roster
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET", "futmondo-local-dev")
@@ -17,6 +19,7 @@ def dashboard():
     players = store.load_squad()
     status_cache = store.load_status_cache()
     api_enabled = ApiFootballClient().enabled
+    futmondo_enabled = FutmondoClient().enabled
 
     rows = []
     for p in players:
@@ -30,8 +33,36 @@ def dashboard():
         "index.html",
         players=rows,
         api_enabled=api_enabled,
+        futmondo_enabled=futmondo_enabled,
         positions=store.POSITIONS,
     )
+
+
+@app.route("/importar-futmondo", methods=["POST"])
+def import_futmondo():
+    client = FutmondoClient()
+    try:
+        raw = client.get_roster()
+    except FutmondoError as e:
+        flash(str(e), "error")
+        return redirect(url_for("dashboard"))
+
+    raw_path = os.path.join(store.DATA_DIR, "futmondo_raw_roster.json")
+    with open(raw_path, "w") as f:
+        json.dump(raw, f, indent=2, ensure_ascii=False)
+
+    normalized = normalize_roster(raw)
+    if not normalized:
+        flash(
+            "Se conectó con Futmondo pero no se pudo interpretar tu plantilla. "
+            "Revisa data/futmondo_raw_roster.json y comparte su estructura para ajustar el mapeo.",
+            "error",
+        )
+        return redirect(url_for("dashboard"))
+
+    store.import_roster(normalized)
+    flash(f"Importados {len(normalized)} jugadores desde Futmondo", "ok")
+    return redirect(url_for("dashboard"))
 
 
 @app.route("/jugadores/nuevo", methods=["POST"])

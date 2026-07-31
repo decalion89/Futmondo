@@ -42,6 +42,29 @@ def add_player(name, position, team, price, api_football_id=None):
     save_squad(players)
 
 
+def import_roster(normalized_players):
+    """Reemplaza tu plantilla con la importada desde Futmondo, conservando
+    el mapeo a API-Football ya resuelto para jugadores que sigan en el equipo
+    (para no gastar peticiones re-buscándolos)."""
+    existing_by_key = {(p["name"], p["team"]): p for p in load_squad()}
+    players = []
+    for p in normalized_players:
+        key = (p["name"], p["team"])
+        prev = existing_by_key.get(key, {})
+        players.append({
+            "id": prev.get("id") or str(uuid.uuid4())[:8],
+            "name": p["name"],
+            "position": p["position"],
+            "team": p["team"],
+            "price": p.get("price"),
+            "futmondo_player_id": p.get("futmondo_player_id"),
+            "api_football_id": prev.get("api_football_id"),
+            "api_football_team_id": prev.get("api_football_team_id"),
+        })
+    save_squad(players)
+    return players
+
+
 def remove_player(player_id):
     players = [p for p in load_squad() if p["id"] != player_id]
     save_squad(players)
