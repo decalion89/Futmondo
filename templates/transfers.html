@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import sparkline %}
 {% block title %}Fichajes - Futmondo Manager{% endblock %}
 {% block content %}
   <div class="section-title"><h2>Fichajes: riesgo/beneficio</h2></div>
@@ -39,7 +40,7 @@
   <table>
     <thead>
       <tr>
-        <th>Jugador</th><th>Pos.</th><th>Equipo</th><th>Precio actual</th>
+        <th>Jugador</th><th>Pos.</th><th>Equipo</th><th>Precio actual</th><th>Tendencia</th>
         <th>Rating</th><th>Puntuación</th><th>Valor (pts/M€)</th>
         <th>Puja máxima recomendada</th><th>Próximo rival</th><th title="Partidos en los últimos 10 días, todas las competiciones">Fatiga</th>
         <th>Pujas</th><th>Cierra en</th>
@@ -65,6 +66,7 @@
           {% elif p.get('price_trend') == 'down' %}<span class="trend-down" title="Bajando de valor">▼</span>
           {% endif %}
         </td>
+        <td data-label="Tendencia">{{ sparkline(p.get('sparkline')) }}</td>
         <td data-label="Rating">{{ p.rating or '—' }}</td>
         <td data-label="Puntuación">{{ p.score or '—' }}{% if p.get('score_from_price') %} <span title="Pretemporada: estimado por precio">💰</span>{% endif %}</td>
         <td data-label="Valor (pts/M€)"><strong>{{ p.value if p.value is not none else '—' }}</strong></td>

@@ -11,9 +11,10 @@ from services.sync import sync_all
 from services.api_football import ApiFootballClient
 from services.futmondo import (
     FutmondoClient, FutmondoError, normalize_roster, normalize_league_teams,
-    next_match_by_team, collect_known_players, normalize_pressroom,
+    next_match_by_team, collect_known_players, normalize_pressroom, get_price_history,
 )
 from services import transfers as transfers_service
+from services import viz
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET", "futmondo-local-dev")
@@ -184,6 +185,21 @@ def transfers():
             listings, benchmark_value, squad, next_match_index, real_budget_cap, position_price_index,
         )
         errors.extend(rank_errors)
+
+    # Sparkline de tendencia de precio real (histórico día a día de
+    # /1/player/summary, cacheado) para los mejores candidatos — no lo
+    # pedimos para los 16 si hay muchos, solo para los que se ven primero.
+    if futmondo_client.enabled:
+        for r in ranked[:10]:
+            player_id = r.get("futmondo_player_id")
+            if not player_id:
+                continue
+            try:
+                history = get_price_history(futmondo_client, player_id)
+                prices = [h["price"] for h in history.get("history", [])]
+                r["sparkline"] = viz.sparkline_svg(prices)
+            except FutmondoError:
+                r["sparkline"] = None
 
     return render_template(
         "transfers.html",

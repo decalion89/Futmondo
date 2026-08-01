@@ -87,3 +87,12 @@
   {% endfor %}
 </div>
 {% endmacro %}
+
+{% macro sparkline(spark) %}
+  {% if spark %}
+  <svg width="{{ spark.width }}" height="{{ spark.height }}" viewBox="0 0 {{ spark.width }} {{ spark.height }}" class="{{ spark.trend_class }}" style="display:block;" aria-hidden="true">
+    <polyline points="{{ spark.points }}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="{{ spark.last_x }}" cy="{{ spark.last_y }}" r="2.5" fill="currentColor"/>
+  </svg>
+  {% else %}—{% endif %}
+{% endmacro %}
