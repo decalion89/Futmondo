@@ -403,15 +403,21 @@ def sync():
 
 @app.route("/debug/fullprofile/<player_id>")
 def debug_fullprofile(player_id):
-    """TEMPORAL: inspeccionar /1/player/fullprofile, encontrado por el
-    usuario en la pestaña Red del navegador. Se retira tras confirmar la
-    estructura."""
+    """TEMPORAL: inspeccionar los endpoints de jugador que el usuario ha
+    encontrado en la pestaña Red del navegador. Se retira tras confirmar
+    la estructura."""
     client = FutmondoClient()
-    try:
-        raw = client.get_player_fullprofile(player_id)
-    except FutmondoError as e:
-        return {"error": str(e)}, 500
-    return raw
+    results = {}
+    for name, fn in [
+        ("fullprofile", client.get_player_fullprofile),
+        ("matches", client.get_player_matches),
+        ("statistics", client.get_player_statistics),
+    ]:
+        try:
+            results[name] = fn(player_id)
+        except FutmondoError as e:
+            results[name] = {"error": str(e)}
+    return results
 
 
 if __name__ == "__main__":

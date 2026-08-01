@@ -90,6 +90,18 @@ class FutmondoClient:
         open-source del que partió este cliente."""
         return self._post("/1/player/fullprofile", {"playerId": player_id})
 
+    def get_player_matches(self, player_id):
+        """Historial partido a partido del jugador — encontrado por el
+        usuario en la pestaña Red del navegador el 2026-08-02, pendiente
+        de confirmar su estructura exacta."""
+        return self._post("/2/player/matches", {"playerId": player_id})
+
+    def get_player_statistics(self, player_id):
+        """Estadísticas detalladas del jugador (goles, pases, entradas...)
+        — encontrado por el usuario en la pestaña Red del navegador el
+        2026-08-02, pendiente de confirmar su estructura exacta."""
+        return self._post("/2/player/statistics", {"playerId": player_id})
+
     def get_pressroom(self):
         """Actividad reciente del mercado de tu liga: quién ha puesto a
         quién en venta (con vendedor, precio, pujas ya recibidas) —
