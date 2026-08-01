@@ -412,6 +412,7 @@ def debug_fullprofile(player_id):
         ("fullprofile", client.get_player_fullprofile),
         ("matches", client.get_player_matches),
         ("statistics", client.get_player_statistics),
+        ("lastseasons", client.get_player_lastseasons),
     ]:
         try:
             results[name] = fn(player_id)

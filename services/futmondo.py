@@ -102,6 +102,13 @@ class FutmondoClient:
         2026-08-02, pendiente de confirmar su estructura exacta."""
         return self._post("/2/player/statistics", {"playerId": player_id})
 
+    def get_player_lastseasons(self, player_id):
+        """Puntuación por temporada de años anteriores (total, partidos
+        jugados, media local/visitante) — encontrado por el usuario en la
+        pestaña Red del navegador el 2026-08-02, pendiente de confirmar su
+        estructura exacta."""
+        return self._post("/2/player/lastseasons", {"playerId": player_id})
+
     def get_pressroom(self):
         """Actividad reciente del mercado de tu liga: quién ha puesto a
         quién en venta (con vendedor, precio, pujas ya recibidas) —
