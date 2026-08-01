@@ -176,10 +176,12 @@ def transfers():
     # el valor de tu equipo) — si no lo conseguimos, seguimos solo con el
     # tope por rentabilidad.
     real_budget_cap = None
+    resale_lock_days = None
     if futmondo_client.enabled:
         try:
             raw_teams = futmondo_client.get_league_teams()
             teams, configuration = normalize_league_teams(raw_teams)
+            resale_lock_days = configuration.get("resale_lock_days")
             my_team = next((t for t in teams if t["id"] == futmondo_client.team_id), None)
             if my_team:
                 real_budget_cap = scoring.real_budget_max_bid(
@@ -221,6 +223,7 @@ def transfers():
         api_enabled=api_enabled,
         benchmark_value=benchmark_value,
         real_budget_cap=real_budget_cap,
+        resale_lock_days=resale_lock_days,
     )
 
 
@@ -265,6 +268,8 @@ def league_team(team_id):
 
             raw_roster = client.get_roster(team_id=team_id)
             listings = normalize_roster(raw_roster)
+            for p in listings:
+                p["status"] = p.get("futmondo_status") or "ok"
         except FutmondoError as e:
             error = str(e)
     return render_template(

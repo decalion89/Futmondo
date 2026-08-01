@@ -32,8 +32,10 @@
     ahora mismo no puedes pujar por encima de <strong>{{ "{:,.0f}".format(real_budget_cap).replace(",", ".") }}€</strong>
     en ningún jugador, por muy rentable que parezca.
     {% endif %}
-    Tu liga exige esperar {{ 7 }} días desde la compra para poder revender un jugador
+    {% if resale_lock_days %}
+    Tu liga exige esperar {{ resale_lock_days }} días desde la compra para poder revender un jugador
     (pendiente de avisar automáticamente hasta que confirmemos la fecha de compra en los datos).
+    {% endif %}
   </p>
 
   {% if ranked %}
