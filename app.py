@@ -401,5 +401,19 @@ def sync():
     return redirect(url_for("dashboard"))
 
 
+@app.route("/debug/rival-roster/<team_id>")
+def debug_rival_roster(team_id):
+    """TEMPORAL: inspeccionar el roster crudo de un rival para confirmar si
+    `clause.price` viene poblado ahora mismo (pretemporada) o depende de
+    alguna condición (tiempo de posesión, mercado activo). Se retira tras
+    confirmar."""
+    client = FutmondoClient()
+    try:
+        raw = client.get_roster(team_id=team_id)
+    except FutmondoError as e:
+        return {"error": str(e)}, 500
+    return raw
+
+
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
