@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import sparkline %}
+{% from "_macros.html" import sparkline, action_card %}
 {% block title %}Mercado - Futmondo Manager{% endblock %}
 {% block content %}
   <div class="section-title"><h2>Mercado</h2></div>
@@ -19,7 +19,16 @@
     </div>
   {% endif %}
 
+  {% if top_picks %}
+  <h3>🎯 Mejores opciones ahora mismo</h3>
+  <div class="action-list">
+    {% for p in top_picks %}{{ action_card(p, 'fichar') }}{% endfor %}
+  </div>
+  <p class="hint" style="margin-top:0.5rem;">Análisis completo (por qué, hasta cuánto pujar, objetivos en otros equipos) en <a href="{{ url_for('transfers') }}">Fichajes</a>. Abajo tienes todo el mercado sin filtrar, para ver el panorama completo.</p>
+  {% endif %}
+
   {% if listings %}
+  <h3 style="margin-top:1.5rem;">Todo el mercado</h3>
   <table>
     <thead>
       <tr>

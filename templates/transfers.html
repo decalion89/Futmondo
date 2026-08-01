@@ -1,8 +1,8 @@
 {% extends "base.html" %}
-{% from "_macros.html" import sparkline %}
+{% from "_macros.html" import sparkline, action_card %}
 {% block title %}Fichajes - Futmondo Manager{% endblock %}
 {% block content %}
-  <div class="section-title"><h2>Fichajes: riesgo/beneficio</h2></div>
+  <div class="section-title"><h2>Fichajes</h2></div>
 
   {% if not futmondo_enabled %}
     <div class="banner">Configura <code>FUTMONDO_TOKEN</code>/<code>FUTMONDO_USER_ID</code> para ver el mercado real (ver README).</div>
@@ -14,192 +14,222 @@
     <div class="banner">{{ e }}</div>
   {% endfor %}
 
-  <div class="section-title"><h2>Comprar: ¿hasta cuánto pujar?</h2></div>
+  <div class="section-title"><h2>🎯 Qué hacer ahora</h2></div>
   <p class="hint">
-    Puntuación = forma reciente ajustada por lo favorable que sea el calendario de sus
-    próximos 5 partidos según su posición. Valor = puntuación por cada millón de €.
-    Puja máxima recomendada = precio al que ese fichaje seguiría siendo, como mínimo, tan
-    rentable como la referencia de tu propia plantilla ({{ benchmark_value }} pts/M€ ahora
-    mismo). Pujar por encima puede compensar si es una posición sin alternativas, pero ya
-    no es una ganga, es una decisión de necesidad.
-  </p>
-  <p class="hint">
-    🚫 = ya tienes el máximo de jugadores de ese equipo real permitido en tu liga
-    (2 por equipo — ajustable en <code>FUTMONDO_MAX_SAME_TEAM</code>).
-    💰 = todavía sin partidos jugados, la puntuación es una estimación por precio.
-    📊 = ya hay partidos reales pero muy pocos (1-2) — el dato pesa, pero regresionado
-    hacia el precio para no fiarnos de una racha de un solo partido: no podemos saber
-    si va a ser titular fijo hasta que se acumulen más jornadas.
-    {% if real_budget_cap is not none %}
-    La puja máxima ya tiene en cuenta el tope real que permite tu liga
-    (fondos disponibles + el % configurado sobre el valor de tu equipo):
-    ahora mismo no puedes pujar por encima de <strong>{{ "{:,.0f}".format(real_budget_cap).replace(",", ".") }}€</strong>
-    en ningún jugador, por muy rentable que parezca.
-    {% endif %}
-    {% if resale_lock_days %}
-    Tu liga exige esperar {{ resale_lock_days }} días desde la compra para poder revender un jugador
-    (pendiente de avisar automáticamente hasta que confirmemos la fecha de compra en los datos).
-    {% endif %}
+    Las mejores opciones ahora mismo, con el motivo de cada una — esto es lo que miraría el sistema si tuviera que decidir. La ejecución (pujar, vender) sigue siendo tuya.
+    {% if real_budget_cap is not none %}No puedes pujar por encima de <strong>{{ "{:,.0f}".format(real_budget_cap).replace(",", ".") }}€</strong> en ningún jugador, por muy rentable que parezca (tope real de tu liga).{% endif %}
   </p>
 
-  {% if ranked %}
-  <table>
-    <thead>
-      <tr>
-        <th>Jugador</th><th>Pos.</th><th>Equipo</th><th>Precio actual</th><th>Tendencia</th>
-        {% if api_enabled %}<th>Rating</th>{% endif %}
-        <th>Puntuación</th><th>Valor (pts/M€)</th>
-        <th>Puja máxima recomendada</th><th>Próximo rival</th>
-        {% if api_enabled %}<th title="Partidos en los últimos 10 días, todas las competiciones">Fatiga</th>{% endif %}
-        <th>Pujas</th><th>Cierra en</th>
-        {% if api_enabled %}<th>Señales</th>{% endif %}
-        <th>Por qué</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for p in ranked %}
-      <tr class="{{ 'highlight' if (loop.index <= 3 and not p.team_limit_reached and not p.low_confidence_fringe) else '' }} {{ 'status-sancionado' if p.team_limit_reached }}">
-        <td data-label="Jugador">
-          <div class="avatar avatar-sm">
-            {% if p.get('photo_url') %}<img src="{{ p.photo_url }}" alt="" onerror="this.remove()">{% endif %}
-            <span class="avatar-initials">{{ p.name[:2]|upper }}</span>
-          </div>
-          {{ p.name }}
-          {% if p.team_limit_reached %}<div class="tag-warn" style="white-space:normal;">🚫 máximo de {{ p.team }}</div>{% endif %}
-          {% if p.low_confidence_fringe %}<div class="tag-warn" style="white-space:normal;">❓ probablemente sin apenas minutos</div>{% endif %}
-        </td>
-        <td data-label="Pos.">{{ p.position }}</td>
-        <td data-label="Equipo">{{ p.team }}</td>
-        <td data-label="Precio actual">
-          {{ "{:,.0f}".format(p.price|float).replace(",", ".") + "€" if p.price else '—' }}
-          {% if p.get('price_trend') == 'up' %}<span class="trend-up" title="Subiendo de valor">▲</span>
-          {% elif p.get('price_trend') == 'down' %}<span class="trend-down" title="Bajando de valor">▼</span>
-          {% endif %}
-        </td>
-        <td data-label="Tendencia">{{ sparkline(p.get('sparkline')) }}</td>
-        {% if api_enabled %}<td data-label="Rating">{{ p.rating or '—' }}</td>{% endif %}
-        <td data-label="Puntuación">{{ p.score or '—' }}{% if p.get('score_from_price') %} <span title="Pretemporada: estimado por precio">💰</span>{% elif p.get('score_low_sample') %} <span title="Solo {{ p.get('implied_games_played') }} partido(s) contabilizado(s) todavía — dato real pero con margen">📊</span>{% endif %}</td>
-        <td data-label="Valor (pts/M€)"><strong>{{ p.value if p.value is not none else '—' }}</strong></td>
-        <td data-label="Puja máxima">
-          {% if p.max_bid is not none %}
-            {{ "{:,.0f}".format(p.max_bid).replace(",", ".") }}€
-            {% if p.over_real_budget %} <span class="tag-warn">🚫 no te llega el presupuesto</span>
-            {% elif p.worth_bidding_more %} <span class="tag-ok">margen para pujar más</span>
-            {% else %} <span class="tag-warn">ya en/sobre su límite</span>
-            {% endif %}
-          {% else %} — {% endif %}
-        </td>
-        <td data-label="Próximo rival">{{ p.next_rival or '—' }}</td>
-        {% if api_enabled %}
-        <td data-label="Fatiga">
-          {% if p.congestion_count and p.congestion_count >= 2 %}
-            <span class="tag-warn">⚡ {{ p.congestion_count }} en 10 días</span>
-          {% else %} — {% endif %}
-        </td>
-        {% endif %}
-        <td data-label="Pujas">{{ p.get('futmondo_bids', 0) }}</td>
-        <td data-label="Cierra en">
-          {% if p.get('futmondo_expiration') %}
-            <span class="countdown" data-expires="{{ p.futmondo_expiration }}">calculando…</span>
-          {% else %} — {% endif %}
-        </td>
-        {% if api_enabled %}
-        <td data-label="Señales">
-          {% if p.penalty_taker %}<span title="Lanza penaltis">🎯</span>{% endif %}
-          {% if p.card_risk %}<span title="A una amarilla de sanción">🟨</span>{% endif %}
-          {% if p.low_motivation %}<span title="Poco en juego para su equipo">😴</span>{% endif %}
-          {% if not (p.penalty_taker or p.card_risk or p.low_motivation) %}—{% endif %}
-        </td>
-        {% endif %}
-        <td data-label="Por qué" style="white-space:normal; min-width:14rem;">{{ p.reason or '—' }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-  <div class="empty-state">Sin candidatos analizados todavía (revisa que haya jugadores en el mercado y las claves configuradas).</div>
+  {% if top_fichar %}
+  <h3 style="margin-top:1rem;">Fichar</h3>
+  <div class="action-list">
+    {% for p in top_fichar %}{{ action_card(p, 'fichar') }}{% endfor %}
+  </div>
   {% endif %}
 
-  {% if rival_targets %}
-  <div class="section-title"><h2>🔒 Objetivos en plantillas rivales (clausulazo)</h2></div>
-  <p class="hint">
-    Jugadores de otros managers de tu liga que puntúan bien para lo que cuestan — mismos criterios que el mercado abierto, para que no se te escape un objetivo solo porque nunca sale a subasta libre.
-    <strong>El importe de clausulazo, cuando se muestra, es una estimación</strong> (precio actual + el % de tu liga) — cuando no tenemos ese % con garantías sale "—": mejor no mostrar un número que mostrar uno erróneo. Confirma siempre el importe exacto en Futmondo antes de pujar.
-  </p>
-  <table>
-    <thead>
-      <tr>
-        <th>Jugador</th><th>Pos.</th><th>Equipo</th><th>Dueño actual</th>
-        <th>Valor actual</th><th>Puntuación</th><th>Valor (pts/M€)</th>
-        <th>Puja de clausulazo (estimada)</th><th>Por qué</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for p in rival_targets %}
-      <tr class="{{ 'highlight' if loop.index <= 3 }}">
-        <td data-label="Jugador">
-          <div class="avatar avatar-sm">
-            {% if p.get('photo_url') %}<img src="{{ p.photo_url }}" alt="" onerror="this.remove()">{% endif %}
-            <span class="avatar-initials">{{ p.name[:2]|upper }}</span>
-          </div>
-          {{ p.name }}
-        </td>
-        <td data-label="Pos.">{{ p.position }}</td>
-        <td data-label="Equipo">{{ p.team }}</td>
-        <td data-label="Dueño actual">{{ p.owner_team }}</td>
-        <td data-label="Valor actual">{{ "{:,.0f}".format(p.price|float).replace(",", ".") + "€" if p.price else '—' }}</td>
-        <td data-label="Puntuación">{{ p.score or '—' }}{% if p.get('score_from_price') %} <span title="Pretemporada: estimado por precio">💰</span>{% elif p.get('score_low_sample') %} <span title="Dato real con margen">📊</span>{% endif %}</td>
-        <td data-label="Valor (pts/M€)"><strong>{{ p.value if p.value is not none else '—' }}</strong></td>
-        <td data-label="Puja de clausulazo">
-          {% if p.clause_estimate is not none %}
-            ~{{ "{:,.0f}".format(p.clause_estimate).replace(",", ".") }}€
-          {% else %} — {% endif %}
-        </td>
-        <td data-label="Por qué" style="white-space:normal; min-width:14rem;">{{ p.reason or '—' }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  {% if top_vender %}
+  <h3 style="margin-top:1rem;">Vender</h3>
+  <div class="action-list">
+    {% for p in top_vender %}{{ action_card(p, 'vender') }}{% endfor %}
+  </div>
   {% endif %}
 
-  <div class="section-title"><h2>Vender: prioridad por riesgo</h2></div>
-  <p class="hint">Primero los que ahora mismo no suman (lesión/sanción/duda) — no tiene sentido pagarles clausula/mantenerlos si tienes mejor opción. Luego, de entre tus jugadores disponibles, los de peor relación puntos/precio.</p>
+  {% if top_clausulazo %}
+  <h3 style="margin-top:1rem;">Clausulazo a rivales</h3>
+  <p class="hint">Jugadores buenos que tienen OTROS managers de tu liga, no en venta libre — el importe es una estimación, confirma siempre el real en Futmondo antes de pujar.</p>
+  <div class="action-list">
+    {% for p in top_clausulazo %}{{ action_card(p, 'clausulazo') }}{% endfor %}
+  </div>
+  {% endif %}
 
-  {% if unavailable %}
-    <h3>No disponibles ahora mismo</h3>
+  {% if not (top_fichar or top_vender or top_clausulazo) %}
+  <div class="empty-state">Sin recomendaciones todavía (revisa que haya jugadores en el mercado y las claves configuradas).</div>
+  {% endif %}
+
+  <details class="add-player" style="margin-top:1.5rem;">
+    <summary>📋 Ver el detalle completo (todas las tablas, con todos los datos)</summary>
+
+    <div class="section-title" style="margin-top:1rem;"><h2>Comprar: ¿hasta cuánto pujar?</h2></div>
+    <p class="hint">
+      Puntuación = forma reciente ajustada por lo favorable que sea el calendario de sus
+      próximos 5 partidos según su posición. Valor = puntuación por cada millón de €.
+      Puja máxima recomendada = precio al que ese fichaje seguiría siendo, como mínimo, tan
+      rentable como la referencia de tu propia plantilla ({{ benchmark_value }} pts/M€ ahora
+      mismo). Pujar por encima puede compensar si es una posición sin alternativas, pero ya
+      no es una ganga, es una decisión de necesidad.
+    </p>
+    <p class="hint">
+      🚫 = ya tienes el máximo de jugadores de ese equipo real permitido en tu liga
+      (2 por equipo — ajustable en <code>FUTMONDO_MAX_SAME_TEAM</code>).
+      💰 = todavía sin partidos jugados, la puntuación es una estimación por precio.
+      📊 = ya hay partidos reales pero muy pocos (1-2) — el dato pesa, pero regresionado
+      hacia el precio para no fiarnos de una racha de un solo partido: no podemos saber
+      si va a ser titular fijo hasta que se acumulen más jornadas.
+      {% if resale_lock_days %}
+      Tu liga exige esperar {{ resale_lock_days }} días desde la compra para poder revender un jugador
+      (pendiente de avisar automáticamente hasta que confirmemos la fecha de compra en los datos).
+      {% endif %}
+    </p>
+
+    {% if ranked %}
     <table>
-      <thead><tr><th>Jugador</th><th>Pos.</th><th>Estado</th><th>Motivo</th></tr></thead>
-      <tbody>
-        {% for p in unavailable %}
-        <tr class="status-{{ p.status }}">
-          <td data-label="Jugador">{{ p.name }}</td>
-          <td data-label="Pos.">{{ p.position }}</td>
-          <td data-label="Estado">{{ p.status }}</td>
-          <td data-label="Motivo">{{ p.reason or '—' }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  {% endif %}
-
-  {% if worst_value %}
-    <h3>Peor relación puntos/precio en tu plantilla</h3>
-    <table>
-      <thead><tr><th>Jugador</th><th>Pos.</th><th>Precio</th><th>Puntuación</th><th>Valor (pts/M€)</th><th>Por qué</th></tr></thead>
-      <tbody>
-        {% for p in worst_value %}
+      <thead>
         <tr>
-          <td data-label="Jugador">{{ p.name }}</td>
+          <th>Jugador</th><th>Pos.</th><th>Equipo</th><th>Precio actual</th><th>Tendencia</th>
+          {% if api_enabled %}<th>Rating</th>{% endif %}
+          <th>Puntuación</th><th>Valor (pts/M€)</th>
+          <th>Puja máxima recomendada</th><th>Próximo rival</th>
+          {% if api_enabled %}<th title="Partidos en los últimos 10 días, todas las competiciones">Fatiga</th>{% endif %}
+          <th>Pujas</th><th>Cierra en</th>
+          {% if api_enabled %}<th>Señales</th>{% endif %}
+          <th>Por qué</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in ranked %}
+        <tr class="{{ 'highlight' if (loop.index <= 3 and not p.team_limit_reached and not p.low_confidence_fringe) else '' }} {{ 'status-sancionado' if p.team_limit_reached }}">
+          <td data-label="Jugador">
+            <div class="avatar avatar-sm">
+              {% if p.get('photo_url') %}<img src="{{ p.photo_url }}" alt="" onerror="this.remove()">{% endif %}
+              <span class="avatar-initials">{{ p.name[:2]|upper }}</span>
+            </div>
+            {{ p.name }}
+            {% if p.team_limit_reached %}<div class="tag-warn" style="white-space:normal;">🚫 máximo de {{ p.team }}</div>{% endif %}
+            {% if p.low_confidence_fringe %}<div class="tag-warn" style="white-space:normal;">❓ probablemente sin apenas minutos</div>{% endif %}
+          </td>
           <td data-label="Pos.">{{ p.position }}</td>
-          <td data-label="Precio">{{ "{:,.0f}".format(p.price|float).replace(",", ".") + "€" if p.price else '—' }}</td>
-          <td data-label="Puntuación">{{ p.score or '—' }}</td>
-          <td data-label="Valor (pts/M€)">{{ p.value if p.value is not none else '—' }}</td>
+          <td data-label="Equipo">{{ p.team }}</td>
+          <td data-label="Precio actual">
+            {{ "{:,.0f}".format(p.price|float).replace(",", ".") + "€" if p.price else '—' }}
+            {% if p.get('price_trend') == 'up' %}<span class="trend-up" title="Subiendo de valor">▲</span>
+            {% elif p.get('price_trend') == 'down' %}<span class="trend-down" title="Bajando de valor">▼</span>
+            {% endif %}
+          </td>
+          <td data-label="Tendencia">{{ sparkline(p.get('sparkline')) }}</td>
+          {% if api_enabled %}<td data-label="Rating">{{ p.rating or '—' }}</td>{% endif %}
+          <td data-label="Puntuación">{{ p.score or '—' }}{% if p.get('score_from_price') %} <span title="Pretemporada: estimado por precio">💰</span>{% elif p.get('score_low_sample') %} <span title="Solo {{ p.get('implied_games_played') }} partido(s) contabilizado(s) todavía — dato real pero con margen">📊</span>{% endif %}</td>
+          <td data-label="Valor (pts/M€)"><strong>{{ p.value if p.value is not none else '—' }}</strong></td>
+          <td data-label="Puja máxima">
+            {% if p.max_bid is not none %}
+              {{ "{:,.0f}".format(p.max_bid).replace(",", ".") }}€
+              {% if p.over_real_budget %} <span class="tag-warn">🚫 no te llega el presupuesto</span>
+              {% elif p.worth_bidding_more %} <span class="tag-ok">margen para pujar más</span>
+              {% else %} <span class="tag-warn">ya en/sobre su límite</span>
+              {% endif %}
+            {% else %} — {% endif %}
+          </td>
+          <td data-label="Próximo rival">{{ p.next_rival or '—' }}</td>
+          {% if api_enabled %}
+          <td data-label="Fatiga">
+            {% if p.congestion_count and p.congestion_count >= 2 %}
+              <span class="tag-warn">⚡ {{ p.congestion_count }} en 10 días</span>
+            {% else %} — {% endif %}
+          </td>
+          {% endif %}
+          <td data-label="Pujas">{{ p.get('futmondo_bids', 0) }}</td>
+          <td data-label="Cierra en">
+            {% if p.get('futmondo_expiration') %}
+              <span class="countdown" data-expires="{{ p.futmondo_expiration }}">calculando…</span>
+            {% else %} — {% endif %}
+          </td>
+          {% if api_enabled %}
+          <td data-label="Señales">
+            {% if p.penalty_taker %}<span title="Lanza penaltis">🎯</span>{% endif %}
+            {% if p.card_risk %}<span title="A una amarilla de sanción">🟨</span>{% endif %}
+            {% if p.low_motivation %}<span title="Poco en juego para su equipo">😴</span>{% endif %}
+            {% if not (p.penalty_taker or p.card_risk or p.low_motivation) %}—{% endif %}
+          </td>
+          {% endif %}
           <td data-label="Por qué" style="white-space:normal; min-width:14rem;">{{ p.reason or '—' }}</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
-  {% endif %}
+    {% else %}
+    <div class="empty-state">Sin candidatos analizados todavía (revisa que haya jugadores en el mercado y las claves configuradas).</div>
+    {% endif %}
+
+    {% if rival_targets %}
+    <div class="section-title" style="margin-top:1.5rem;"><h2>🔒 Objetivos en plantillas rivales (clausulazo)</h2></div>
+    <p class="hint">
+      Jugadores de otros managers de tu liga que puntúan bien para lo que cuestan — mismos criterios que el mercado abierto, para que no se te escape un objetivo solo porque nunca sale a subasta libre.
+      <strong>El importe de clausulazo, cuando se muestra, es una estimación</strong> (precio actual + el % de tu liga) — cuando no tenemos ese % con garantías sale "—": mejor no mostrar un número que mostrar uno erróneo. Confirma siempre el importe exacto en Futmondo antes de pujar.
+    </p>
+    <table>
+      <thead>
+        <tr>
+          <th>Jugador</th><th>Pos.</th><th>Equipo</th><th>Dueño actual</th>
+          <th>Valor actual</th><th>Puntuación</th><th>Valor (pts/M€)</th>
+          <th>Puja de clausulazo (estimada)</th><th>Por qué</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in rival_targets %}
+        <tr class="{{ 'highlight' if loop.index <= 3 }}">
+          <td data-label="Jugador">
+            <div class="avatar avatar-sm">
+              {% if p.get('photo_url') %}<img src="{{ p.photo_url }}" alt="" onerror="this.remove()">{% endif %}
+              <span class="avatar-initials">{{ p.name[:2]|upper }}</span>
+            </div>
+            {{ p.name }}
+          </td>
+          <td data-label="Pos.">{{ p.position }}</td>
+          <td data-label="Equipo">{{ p.team }}</td>
+          <td data-label="Dueño actual">{{ p.owner_team }}</td>
+          <td data-label="Valor actual">{{ "{:,.0f}".format(p.price|float).replace(",", ".") + "€" if p.price else '—' }}</td>
+          <td data-label="Puntuación">{{ p.score or '—' }}{% if p.get('score_from_price') %} <span title="Pretemporada: estimado por precio">💰</span>{% elif p.get('score_low_sample') %} <span title="Dato real con margen">📊</span>{% endif %}</td>
+          <td data-label="Valor (pts/M€)"><strong>{{ p.value if p.value is not none else '—' }}</strong></td>
+          <td data-label="Puja de clausulazo">
+            {% if p.clause_estimate is not none %}
+              ~{{ "{:,.0f}".format(p.clause_estimate).replace(",", ".") }}€
+            {% else %} — {% endif %}
+          </td>
+          <td data-label="Por qué" style="white-space:normal; min-width:14rem;">{{ p.reason or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    <div class="section-title" style="margin-top:1.5rem;"><h2>Vender: prioridad por riesgo</h2></div>
+    <p class="hint">Primero los que ahora mismo no suman (lesión/sanción/duda) — no tiene sentido pagarles clausula/mantenerlos si tienes mejor opción. Luego, de entre tus jugadores disponibles, los de peor relación puntos/precio.</p>
+
+    {% if unavailable %}
+      <h3>No disponibles ahora mismo</h3>
+      <table>
+        <thead><tr><th>Jugador</th><th>Pos.</th><th>Estado</th><th>Motivo</th></tr></thead>
+        <tbody>
+          {% for p in unavailable %}
+          <tr class="status-{{ p.status }}">
+            <td data-label="Jugador">{{ p.name }}</td>
+            <td data-label="Pos.">{{ p.position }}</td>
+            <td data-label="Estado">{{ p.status }}</td>
+            <td data-label="Motivo">{{ p.reason or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+
+    {% if worst_value %}
+      <h3>Peor relación puntos/precio en tu plantilla</h3>
+      <table>
+        <thead><tr><th>Jugador</th><th>Pos.</th><th>Precio</th><th>Puntuación</th><th>Valor (pts/M€)</th><th>Por qué</th></tr></thead>
+        <tbody>
+          {% for p in worst_value %}
+          <tr>
+            <td data-label="Jugador">{{ p.name }}</td>
+            <td data-label="Pos.">{{ p.position }}</td>
+            <td data-label="Precio">{{ "{:,.0f}".format(p.price|float).replace(",", ".") + "€" if p.price else '—' }}</td>
+            <td data-label="Puntuación">{{ p.score or '—' }}</td>
+            <td data-label="Valor (pts/M€)">{{ p.value if p.value is not none else '—' }}</td>
+            <td data-label="Por qué" style="white-space:normal; min-width:14rem;">{{ p.reason or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  </details>
 
   <script>
     function updateCountdowns() {

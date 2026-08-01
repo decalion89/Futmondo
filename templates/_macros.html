@@ -90,6 +90,39 @@
 </div>
 {% endmacro %}
 
+{% macro action_card(p, kind) %}
+{% set cfg = {
+  'fichar': {'label': '🎯 FICHAR', 'class': 'action-fichar'},
+  'vender': {'label': '💸 VENDER', 'class': 'action-vender'},
+  'clausulazo': {'label': '🔒 CLAUSULAZO', 'class': 'action-clausulazo'},
+}[kind] %}
+<div class="action-card {{ cfg.class }}">
+  <div class="avatar">
+    {% if p.get('photo_url') %}<img src="{{ p.photo_url }}" alt="" onerror="this.remove()">{% endif %}
+    <span class="avatar-initials">{{ p.name[:2]|upper }}</span>
+  </div>
+  <div class="action-body">
+    <div class="action-top">
+      <span class="action-badge">{{ cfg.label }}</span>
+      <strong class="action-name">{{ p.name }}</strong>
+      <span class="hint">{{ p.position }} · {{ p.team }}{% if p.get('owner_team') %} (de {{ p.owner_team }}){% endif %}</span>
+    </div>
+    <div class="action-headline">
+      {% if kind == 'fichar' %}
+        {% if p.max_bid is not none %}Puja hasta <strong>{{ "{:,.0f}".format(p.max_bid).replace(",", ".") }}€</strong>{% endif %}
+        {% if p.get('futmondo_expiration') %} · cierra en <span class="countdown" data-expires="{{ p.futmondo_expiration }}">calculando…</span>{% endif %}
+      {% elif kind == 'clausulazo' %}
+        {% if p.clause_estimate is not none %}Clausulazo estimado <strong>~{{ "{:,.0f}".format(p.clause_estimate).replace(",", ".") }}€</strong>
+        {% else %}Confirma el importe de clausulazo en Futmondo{% endif %}
+      {% elif kind == 'vender' and p.price %}
+        Precio actual <strong>{{ "{:,.0f}".format(p.price|float).replace(",", ".") }}€</strong>
+      {% endif %}
+    </div>
+    {% if p.get('reason') %}<div class="action-reason">{{ p.reason }}</div>{% endif %}
+  </div>
+</div>
+{% endmacro %}
+
 {% macro position_tabs(positions) %}
 <div class="tabs" id="position-tabs">
   <button type="button" class="tab active" data-pos="all">Todos</button>

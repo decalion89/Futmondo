@@ -401,6 +401,45 @@ tr.status-duda td { background: var(--warning-tint); }
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
 }
 
+/* Tarjetas de acción (Fichajes): "qué hacer", no una tabla que interpretar */
+.action-list { display: flex; flex-direction: column; gap: 0.55rem; margin-top: 0.75rem; }
+.action-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.8rem 1rem;
+  box-shadow: var(--shadow);
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+.action-card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+.action-fichar { border-left-color: var(--primary); }
+.action-vender { border-left-color: var(--danger); }
+.action-clausulazo { border-left-color: var(--info); }
+
+.action-badge {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  margin-right: 0.3rem;
+  white-space: nowrap;
+}
+.action-fichar .action-badge { background: var(--primary-tint); color: var(--primary-dark); }
+.action-vender .action-badge { background: var(--danger-tint); color: var(--danger); }
+.action-clausulazo .action-badge { background: var(--info-tint); color: var(--info); }
+
+.action-body { flex: 1; min-width: 0; }
+.action-top { display: flex; align-items: center; flex-wrap: wrap; gap: 0.35rem; }
+.action-name { font-size: 0.98rem; }
+.action-headline { font-size: 0.88rem; font-weight: 600; margin-top: 0.3rem; }
+.action-reason { font-size: 0.82rem; color: var(--muted); margin-top: 0.2rem; }
+
 .empty-state {
   text-align: center;
   color: var(--muted);

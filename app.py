@@ -161,9 +161,24 @@ def market():
                         p["sparkline"] = None
         except FutmondoError as e:
             error = str(e)
+
+    # Mismo "qué hacer" que Fichajes, para no dejar el mercado como una
+    # tabla en bruto sin ninguna guía — el detalle completo sigue en
+    # Fichajes, esto es solo el titular.
+    top_picks = []
+    if client.enabled:
+        squad = store.load_squad()
+        status_cache = store.load_status_cache()
+        result = transfers_service.full_market_ranking(client, squad, status_cache)
+        top_picks = [
+            r for r in result["ranked"]
+            if not r.get("team_limit_reached") and not r.get("low_confidence_fringe")
+        ][:3]
+
     return render_template(
         "market.html",
         listings=listings,
+        top_picks=top_picks,
         error=error,
         futmondo_enabled=client.enabled,
         raw_debug=raw if not listings else None,
@@ -212,12 +227,25 @@ def transfers():
         )
         result["errors"].extend(rival_target_errors)
 
+    # "Qué hacer ahora": el resumen accionable de arriba de la página — el
+    # detalle completo (todas las tablas) sigue disponible más abajo, pero
+    # colapsado, para quien quiera revisarlo entero.
+    top_fichar = [
+        r for r in ranked
+        if not r.get("team_limit_reached") and not r.get("low_confidence_fringe")
+    ][:5]
+    top_clausulazo = rival_targets[:5]
+    top_vender = unavailable + worst_value[:3]
+
     return render_template(
         "transfers.html",
         ranked=ranked,
         rival_targets=rival_targets,
         unavailable=unavailable,
         worst_value=worst_value,
+        top_fichar=top_fichar,
+        top_clausulazo=top_clausulazo,
+        top_vender=top_vender,
         errors=result["errors"],
         futmondo_enabled=futmondo_client.enabled,
         api_enabled=api_enabled,
