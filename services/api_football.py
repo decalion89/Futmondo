@@ -36,17 +36,38 @@ class ApiFootballClient:
         return bool(self.api_key)
 
     def _get(self, path, params=None):
+        """Todas las formas en que esto puede fallar (red caída, clave
+        rechazada, cuota agotada, respuesta rara) se convierten en
+        ApiFootballError — es la única excepción que el resto de la app
+        sabe capturar para degradar con un mensaje claro en vez de tumbar
+        la petición entera con un error 500 genérico."""
         if not self.enabled:
             raise ApiFootballError("Falta API_FOOTBALL_KEY en el archivo .env")
         headers = {"x-apisports-key": self.api_key}
-        resp = requests.get(f"{BASE_URL}/{path}", headers=headers, params=params, timeout=15)
+        try:
+            resp = requests.get(f"{BASE_URL}/{path}", headers=headers, params=params, timeout=15)
+        except requests.exceptions.RequestException as e:
+            raise ApiFootballError(f"No se pudo conectar con API-Football: {e}")
+
+        if resp.status_code in (401, 403):
+            raise ApiFootballError(
+                "API-Football ha rechazado la clave (cuenta suspendida, clave incorrecta o "
+                "suscripción inactiva) — revisa API_FOOTBALL_KEY y el estado de tu cuenta en api-football.com."
+            )
         if resp.status_code == 429:
             raise ApiFootballError(
                 "Has agotado tu cuota diaria de API-Football (plan gratuito: 100 peticiones/día). "
                 "Vuelve a intentarlo mañana, o sincroniza con menos frecuencia."
             )
-        resp.raise_for_status()
-        payload = resp.json()
+        try:
+            resp.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            raise ApiFootballError(f"API-Football devolvió un error ({resp.status_code}): {e}")
+
+        try:
+            payload = resp.json()
+        except ValueError:
+            raise ApiFootballError("API-Football devolvió una respuesta que no se pudo leer (no era JSON válido)")
         if payload.get("errors"):
             raise ApiFootballError(str(payload["errors"]))
         return payload.get("response", [])

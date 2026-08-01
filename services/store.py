@@ -116,12 +116,25 @@ def add_score_entry(history, player_id, date, score):
     para un jugador — no hay forma honesta de estimar consistencia/varianza
     real (para elegir alineación a "suelo" o "techo") sin ir acumulando su
     puntuación jornada a jornada; esto empieza a construir ese histórico
-    desde ya. Si ya hay una entrada de la misma fecha (varios sync el mismo
-    día), la sustituye en vez de duplicar. Sin I/O propio para poder
-    acumular todos los jugadores de un sync y guardar una sola vez."""
+    desde ya.
+
+    Futmondo solo actualiza `average`/`points` cuando se juega un partido
+    real, así que sincronizar varios días seguidos ENTRE jornadas daría la
+    misma puntuación una y otra vez — si guardásemos una entrada por cada
+    sync, el histórico se llenaría de días idénticos que no representan
+    partidos distintos, y la varianza calculada saldría artificialmente
+    baja justo cuando empezáramos a fiarnos de ella. Por eso: mismo día que
+    la última entrada -> se sustituye (corrección del mismo día); día
+    distinto pero MISMA puntuación que la última -> no se añade nada (no ha
+    pasado nada nuevo desde la última vez); puntuación distinta -> se
+    añade, sea cual sea la fecha."""
     entries = history.setdefault(player_id, [])
-    entries[:] = [e for e in entries if e.get("date") != date]
-    entries.append({"date": date, "score": score})
-    entries.sort(key=lambda e: e["date"])
-    del entries[:-SCORE_HISTORY_MAX_ENTRIES]
+    if entries and entries[-1]["date"] == date:
+        entries[-1]["score"] = score
+    elif entries and entries[-1]["score"] == score:
+        pass  # mismo rendimiento que la última entrada registrada, no es un dato nuevo
+    else:
+        entries.append({"date": date, "score": score})
+        entries.sort(key=lambda e: e["date"])
+        del entries[:-SCORE_HISTORY_MAX_ENTRIES]
     return entries

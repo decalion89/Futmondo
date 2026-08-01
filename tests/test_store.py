@@ -31,5 +31,31 @@ def test_add_score_entry_keeps_entries_sorted_by_date():
 def test_add_score_entry_caps_history_length():
     history = {}
     for i in range(store.SCORE_HISTORY_MAX_ENTRIES + 10):
-        entries = store.add_score_entry(history, "p1", f"day-{i:03d}", 6.0)
+        entries = store.add_score_entry(history, "p1", f"day-{i:03d}", 6.0 + i * 0.01)  # distinta cada vez
     assert len(entries) <= store.SCORE_HISTORY_MAX_ENTRIES
+
+
+def test_add_score_entry_skips_duplicate_score_on_a_different_day():
+    # Entre jornadas, Futmondo no actualiza la media/puntos hasta que se
+    # juega el siguiente partido — sincronizar en días distintos sin que
+    # haya cambiado nada no debe generar una entrada nueva por cada día.
+    history = {"p1": [{"date": "2026-08-15", "score": 6.5}]}
+    entries = store.add_score_entry(history, "p1", "2026-08-16", 6.5)
+    assert entries == [{"date": "2026-08-15", "score": 6.5}]  # sin cambios, no se añade nada nuevo
+
+    # En cuanto la puntuación cambia de verdad (nueva jornada jugada), sí
+    # se añade como una entrada distinta.
+    entries = store.add_score_entry(history, "p1", "2026-08-22", 7.1)
+    assert entries == [
+        {"date": "2026-08-15", "score": 6.5},
+        {"date": "2026-08-22", "score": 7.1},
+    ]
+
+
+def test_add_score_entry_same_day_correction_ignores_value_dedup():
+    # Corrección del mismo día: aunque el valor coincida con el anterior de
+    # otro día, si la fecha es la misma que la última entrada, se sustituye
+    # (no se compara con el valor).
+    history = {"p1": [{"date": "2026-08-15", "score": 6.5}]}
+    entries = store.add_score_entry(history, "p1", "2026-08-15", 6.9)
+    assert entries == [{"date": "2026-08-15", "score": 6.9}]
