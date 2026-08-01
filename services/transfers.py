@@ -367,6 +367,7 @@ def full_market_ranking(client, squad, status_cache):
             "ranked": [], "errors": errors, "benchmark_value": scoring.DEFAULT_VALUE_BENCHMARK,
             "real_budget_cap": None, "resale_lock_days": None, "my_rank": None, "total_teams": None,
             "clause_increase_pct": None, "next_match_index": {}, "position_price_index": {},
+            "available_funds": None,
         }
 
     try:
@@ -392,6 +393,7 @@ def full_market_ranking(client, squad, status_cache):
     real_budget_cap = None
     resale_lock_days = None
     clause_increase_pct = None
+    available_funds = None
     my_rank = None
     total_teams = None
     try:
@@ -405,6 +407,10 @@ def full_market_ranking(client, squad, status_cache):
                 configuration.get("budget"), my_team.get("team_value"),
                 configuration.get("max_bid_over_funds_pct"),
             )
+            budget = configuration.get("budget")
+            team_value = my_team.get("team_value")
+            if budget is not None and team_value is not None:
+                available_funds = round(budget - team_value)
         # Clasificación real por puntos (no por valor de equipo, que es el
         # orden de `teams`) — para saber si conviene jugar a "suelo" (vas
         # líder) o a "techo" (vas remontando). Antes de que arranque la
@@ -430,6 +436,7 @@ def full_market_ranking(client, squad, status_cache):
         "real_budget_cap": real_budget_cap, "resale_lock_days": resale_lock_days,
         "my_rank": my_rank, "total_teams": total_teams, "clause_increase_pct": clause_increase_pct,
         "next_match_index": next_match_index, "position_price_index": position_price_index,
+        "available_funds": available_funds,
     }
 
 
@@ -539,3 +546,48 @@ def scan_rival_targets(
         if not r.get("team_limit_reached") and not r.get("low_confidence_fringe")
     ]
     return candidates[:top], errors
+
+
+def build_transfer_plan(top_fichar, top_vender, top_clausulazo, available_funds):
+    """El plan concreto de HOY: qué fichar con el dinero que tienes de
+    verdad ahora mismo, y si vender a alguien de tu plantilla te permite
+    llegar a un objetivo que se te queda corto de presupuesto — en vez de
+    dejarte una lista de opciones independientes para que hagas tú la
+    cuenta. El mercado se renueva a diario, así que esto se recalcula cada
+    vez que entras, no es un plan que valga toda la semana.
+
+    Voraz por orden de valor (mismo orden en el que ya vienen fichar y
+    clausulazo) — con 5-10 candidatos no hace falta una optimización
+    combinatoria exhaustiva: coge lo mejor que cabe, en orden, y para lo
+    que no cabe comprueba si vendiendo al peor de tu plantilla llegarías."""
+    if available_funds is None:
+        return []
+
+    remaining = available_funds
+    sellable = list(top_vender)
+
+    candidates = [(c, "fichar") for c in top_fichar] + [(c, "clausulazo") for c in top_clausulazo]
+    candidates.sort(key=lambda item: -(item[0].get("value") or 0))
+
+    plan = []
+    for candidate, kind in candidates:
+        cost = scoring.parse_price(
+            candidate.get("clause_estimate") if kind == "clausulazo" else candidate.get("price")
+        )
+        if cost is None:
+            continue
+        if cost <= remaining:
+            plan.append({"kind": kind, "player": candidate, "cost": cost, "sell_player": None})
+            remaining -= cost
+            continue
+        for seller in sellable:
+            sell_price = scoring.parse_price(seller.get("price"))
+            if sell_price and (remaining + sell_price) >= cost:
+                plan.append({
+                    "kind": kind, "player": candidate, "cost": cost,
+                    "sell_player": seller, "sell_price": sell_price,
+                })
+                remaining = remaining + sell_price - cost
+                sellable.remove(seller)
+                break
+    return plan

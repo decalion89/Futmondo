@@ -256,3 +256,66 @@ def test_scan_rival_targets_clause_estimate_none_when_pct_implausible(monkeypatc
             position_price_index={}, clause_increase_pct=bad_pct,
         )
         assert candidates[0]["clause_estimate"] is None
+
+
+def _candidate(name, price, value, kind_field=None):
+    d = {"name": name, "price": price, "value": value}
+    if kind_field:
+        d.update(kind_field)
+    return d
+
+
+def test_build_transfer_plan_buys_what_fits_within_funds():
+    fichar = [_candidate("Barato", 5_000_000, 4.0)]
+    plan = transfers.build_transfer_plan(fichar, [], [], available_funds=10_000_000)
+    assert len(plan) == 1
+    assert plan[0]["kind"] == "fichar"
+    assert plan[0]["player"]["name"] == "Barato"
+    assert plan[0]["cost"] == 5_000_000
+    assert plan[0]["sell_player"] is None
+
+
+def test_build_transfer_plan_sells_worst_to_afford_target_that_does_not_fit():
+    fichar = [_candidate("Caro", 12_000_000, 5.0)]
+    vender = [_candidate("Prescindible", 5_000_000, 0.1)]
+    plan = transfers.build_transfer_plan(fichar, vender, [], available_funds=10_000_000)
+    assert len(plan) == 1
+    assert plan[0]["sell_player"]["name"] == "Prescindible"
+    assert plan[0]["cost"] == 12_000_000
+
+
+def test_build_transfer_plan_skips_target_when_even_selling_is_not_enough():
+    fichar = [_candidate("Inalcanzable", 50_000_000, 9.0)]
+    vender = [_candidate("Poca_cosa", 1_000_000, 0.1)]
+    plan = transfers.build_transfer_plan(fichar, vender, [], available_funds=10_000_000)
+    assert plan == []
+
+
+def test_build_transfer_plan_prioritizes_by_value_across_fichar_and_clausulazo():
+    fichar = [_candidate("MenosValor", 1_000_000, 2.0)]
+    clausulazo = [{"name": "MasValor", "clause_estimate": 1_000_000, "value": 8.0}]
+    plan = transfers.build_transfer_plan(fichar, [], clausulazo, available_funds=1_000_000)
+    # Solo cabe uno (el dinero se agota con el primero) -> debe ser el de más valor.
+    assert len(plan) == 1
+    assert plan[0]["player"]["name"] == "MasValor"
+    assert plan[0]["kind"] == "clausulazo"
+
+
+def test_build_transfer_plan_does_not_reuse_the_same_seller_twice():
+    fichar = [_candidate("A", 12_000_000, 5.0), _candidate("B", 12_000_000, 4.0)]
+    vender = [_candidate("UnicoVendible", 5_000_000, 0.1)]
+    plan = transfers.build_transfer_plan(fichar, vender, [], available_funds=10_000_000)
+    # Solo el primero (mejor valor) puede completarse vendiendo; para el
+    # segundo ya no queda a quién vender.
+    assert len(plan) == 1
+    assert plan[0]["player"]["name"] == "A"
+
+
+def test_build_transfer_plan_empty_without_available_funds():
+    assert transfers.build_transfer_plan([_candidate("X", 1, 1.0)], [], [], available_funds=None) == []
+
+
+def test_build_transfer_plan_skips_candidates_without_parseable_cost():
+    clausulazo = [{"name": "SinClausula", "clause_estimate": None, "value": 9.0}]
+    plan = transfers.build_transfer_plan([], [], clausulazo, available_funds=10_000_000)
+    assert plan == []

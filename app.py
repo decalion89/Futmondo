@@ -237,6 +237,14 @@ def transfers():
     top_clausulazo = rival_targets[:5]
     top_vender = unavailable + worst_value[:3]
 
+    # El plan de HOY: qué te cabe de verdad con tu dinero disponible ahora
+    # mismo, y si vender a alguien te permite llegar a un objetivo mejor.
+    # Solo se puede calcular con fondos reales (no el tope con margen de
+    # puja, que infla lo que "cabe" simultáneamente en varias compras).
+    daily_plan = transfers_service.build_transfer_plan(
+        top_fichar, top_vender, top_clausulazo, result["available_funds"],
+    )
+
     return render_template(
         "transfers.html",
         ranked=ranked,
@@ -246,6 +254,8 @@ def transfers():
         top_fichar=top_fichar,
         top_clausulazo=top_clausulazo,
         top_vender=top_vender,
+        daily_plan=daily_plan,
+        available_funds=result["available_funds"],
         errors=result["errors"],
         futmondo_enabled=futmondo_client.enabled,
         api_enabled=api_enabled,

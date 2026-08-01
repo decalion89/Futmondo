@@ -14,9 +14,41 @@
     <div class="banner">{{ e }}</div>
   {% endfor %}
 
-  <div class="section-title"><h2>🎯 Qué hacer ahora</h2></div>
+  {% if daily_plan %}
+  <div class="section-title"><h2>📋 Tu plan de hoy</h2></div>
   <p class="hint">
-    Las mejores opciones ahora mismo, con el motivo de cada una — esto es lo que miraría el sistema si tuviera que decidir. La ejecución (pujar, vender) sigue siendo tuya.
+    Con tus fondos disponibles ahora mismo ({{ "{:,.0f}".format(available_funds).replace(",", ".") }}€), esto es lo que te cabe, en orden de prioridad — si hace falta vender a alguien para llegar a un objetivo mejor, ya está calculado. El mercado se renueva a diario, así que este plan es de hoy, no de toda la semana.
+  </p>
+  <div class="action-list">
+    {% for step in daily_plan %}
+    <div class="action-card {{ 'action-clausulazo' if step.kind == 'clausulazo' else 'action-fichar' }}">
+      <div class="avatar">
+        {% if step.player.get('photo_url') %}<img src="{{ step.player.photo_url }}" alt="" onerror="this.remove()">{% endif %}
+        <span class="avatar-initials">{{ step.player.name[:2]|upper }}</span>
+      </div>
+      <div class="action-body">
+        <div class="action-top">
+          <span class="action-badge">{{ '🔒 CLAUSULAZO' if step.kind == 'clausulazo' else '🎯 FICHAR' }}</span>
+          <strong class="action-name">{{ step.player.name }}</strong>
+          <span class="hint">{{ step.player.get('position') }} · {{ step.player.get('team') }}{% if step.player.get('owner_team') %} (de {{ step.player.owner_team }}){% endif %}</span>
+        </div>
+        <div class="action-headline">
+          {{ "{:,.0f}".format(step.cost).replace(",", ".") }}€
+          {% if step.sell_player %}
+            — antes vende a <strong>{{ step.sell_player.name }}</strong> ({{ "{:,.0f}".format(step.sell_price).replace(",", ".") }}€) para tener sitio
+          {% endif %}
+        </div>
+        {% if step.player.get('reason') %}<div class="action-reason">{{ step.player.reason }}</div>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="section-title"><h2>🎯 Más opciones</h2></div>
+  <p class="hint">
+    {% if daily_plan %}El resto de candidatos que no entraron en el plan de hoy (o que sí, con más detalle) — por si quieres desviarte del plan a propósito.{% else %}Las mejores opciones ahora mismo, con el motivo de cada una — esto es lo que miraría el sistema si tuviera que decidir.{% endif %}
+    La ejecución (pujar, vender) sigue siendo tuya.
     {% if real_budget_cap is not none %}No puedes pujar por encima de <strong>{{ "{:,.0f}".format(real_budget_cap).replace(",", ".") }}€</strong> en ningún jugador, por muy rentable que parezca (tope real de tu liga).{% endif %}
   </p>
 
