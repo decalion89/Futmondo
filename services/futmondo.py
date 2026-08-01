@@ -264,34 +264,44 @@ def parse_match_odds(match, home_name, away_name):
 
 
 def next_match_by_team(match_list_answer):
-    """A partir de la respuesta de /1/match/list, indexa por id de equipo
-    real de Futmondo (el mismo `teamId` que trae tu plantilla) el próximo
-    rival, si juega en casa, la fecha, y la probabilidad de victoria
-    implícita en las cuotas (para medir dificultad sin depender de otra
-    API)."""
+    """A partir de la respuesta de /1/match/list, indexa el próximo rival,
+    si juega en casa, la fecha, y la probabilidad de victoria implícita en
+    las cuotas (para medir dificultad sin depender de otra API).
+
+    Se indexa TANTO por id de equipo (el `teamId` que trae tu plantilla)
+    COMO por nombre de equipo (porque el mercado, a diferencia de tu
+    plantilla, no trae `teamId` — solo el nombre) — así funciona el cruce
+    venga de donde venga el jugador."""
     matches = (match_list_answer or {}).get("matches") or []
     index = {}
     for m in matches:
         home = m.get("homeTeam") or {}
         away = m.get("awayTeam") or {}
         home_id, away_id = home.get("id"), away.get("id")
-        probs = parse_match_odds(m, home.get("name"), away.get("name"))
+        home_name, away_name = home.get("name"), away.get("name")
+        probs = parse_match_odds(m, home_name, away_name)
+        home_info = {
+            "rival": away_name,
+            "is_home": True,
+            "date": m.get("date"),
+            "win_prob": probs["home"] if probs else None,
+            "draw_prob": probs["draw"] if probs else None,
+        }
+        away_info = {
+            "rival": home_name,
+            "is_home": False,
+            "date": m.get("date"),
+            "win_prob": probs["away"] if probs else None,
+            "draw_prob": probs["draw"] if probs else None,
+        }
         if home_id:
-            index[home_id] = {
-                "rival": away.get("name"),
-                "is_home": True,
-                "date": m.get("date"),
-                "win_prob": probs["home"] if probs else None,
-                "draw_prob": probs["draw"] if probs else None,
-            }
+            index[home_id] = home_info
+        if home_name:
+            index[home_name] = home_info
         if away_id:
-            index[away_id] = {
-                "rival": home.get("name"),
-                "is_home": False,
-                "date": m.get("date"),
-                "win_prob": probs["away"] if probs else None,
-                "draw_prob": probs["draw"] if probs else None,
-            }
+            index[away_id] = away_info
+        if away_name:
+            index[away_name] = away_info
     return index
 
 

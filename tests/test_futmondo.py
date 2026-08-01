@@ -103,6 +103,15 @@ def test_next_match_by_team_indexes_home_and_away():
     assert index["t-alaves"]["win_prob"] > index["t-getafe"]["win_prob"]
 
 
+def test_next_match_by_team_also_indexes_by_name():
+    # El mercado no trae teamId, solo el nombre del equipo — debe poder
+    # buscarse por nombre igual que por id.
+    match_list = {"matches": [_match("Alaves", "Getafe", home_id="t-alaves", away_id="t-getafe")]}
+    index = futmondo.next_match_by_team(match_list)
+    assert index["Alaves"]["rival"] == "Getafe"
+    assert index["Getafe"]["rival"] == "Alaves"
+
+
 def test_next_match_by_team_empty_without_matches():
     assert futmondo.next_match_by_team({}) == {}
     assert futmondo.next_match_by_team(None) == {}

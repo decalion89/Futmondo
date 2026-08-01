@@ -41,10 +41,12 @@
     <thead>
       <tr>
         <th>Jugador</th><th>Pos.</th><th>Equipo</th><th>Precio actual</th><th>Tendencia</th>
-        <th>Rating</th><th>Puntuación</th><th>Valor (pts/M€)</th>
-        <th>Puja máxima recomendada</th><th>Próximo rival</th><th title="Partidos en los últimos 10 días, todas las competiciones">Fatiga</th>
+        {% if api_enabled %}<th>Rating</th>{% endif %}
+        <th>Puntuación</th><th>Valor (pts/M€)</th>
+        <th>Puja máxima recomendada</th><th>Próximo rival</th>
+        {% if api_enabled %}<th title="Partidos en los últimos 10 días, todas las competiciones">Fatiga</th>{% endif %}
         <th>Pujas</th><th>Cierra en</th>
-        <th>Señales</th>
+        {% if api_enabled %}<th>Señales</th>{% endif %}
       </tr>
     </thead>
     <tbody>
@@ -56,23 +58,23 @@
             <span class="avatar-initials">{{ p.name[:2]|upper }}</span>
           </div>
           {{ p.name }}
-          {% if p.team_limit_reached %}<br><span class="tag-warn">🚫 ya tienes el máximo de {{ p.team }}</span>{% endif %}
+          {% if p.team_limit_reached %}<div class="tag-warn" style="white-space:normal;">🚫 máximo de {{ p.team }}</div>{% endif %}
         </td>
         <td data-label="Pos.">{{ p.position }}</td>
         <td data-label="Equipo">{{ p.team }}</td>
         <td data-label="Precio actual">
-          {{ p.price or '-' }}
+          {{ "{:,.0f}".format(p.price|float).replace(",", ".") + "€" if p.price else '—' }}
           {% if p.get('price_trend') == 'up' %}<span class="trend-up" title="Subiendo de valor">▲</span>
           {% elif p.get('price_trend') == 'down' %}<span class="trend-down" title="Bajando de valor">▼</span>
           {% endif %}
         </td>
         <td data-label="Tendencia">{{ sparkline(p.get('sparkline')) }}</td>
-        <td data-label="Rating">{{ p.rating or '—' }}</td>
+        {% if api_enabled %}<td data-label="Rating">{{ p.rating or '—' }}</td>{% endif %}
         <td data-label="Puntuación">{{ p.score or '—' }}{% if p.get('score_from_price') %} <span title="Pretemporada: estimado por precio">💰</span>{% endif %}</td>
         <td data-label="Valor (pts/M€)"><strong>{{ p.value if p.value is not none else '—' }}</strong></td>
         <td data-label="Puja máxima">
           {% if p.max_bid is not none %}
-            {{ "{:,.0f}".format(p.max_bid) }}€
+            {{ "{:,.0f}".format(p.max_bid).replace(",", ".") }}€
             {% if p.over_real_budget %} <span class="tag-warn">🚫 no te llega el presupuesto</span>
             {% elif p.worth_bidding_more %} <span class="tag-ok">margen para pujar más</span>
             {% else %} <span class="tag-warn">ya en/sobre su límite</span>
@@ -80,23 +82,27 @@
           {% else %} — {% endif %}
         </td>
         <td data-label="Próximo rival">{{ p.next_rival or '—' }}</td>
+        {% if api_enabled %}
         <td data-label="Fatiga">
           {% if p.congestion_count and p.congestion_count >= 2 %}
             <span class="tag-warn">⚡ {{ p.congestion_count }} en 10 días</span>
           {% else %} — {% endif %}
         </td>
+        {% endif %}
         <td data-label="Pujas">{{ p.get('futmondo_bids', 0) }}</td>
         <td data-label="Cierra en">
           {% if p.get('futmondo_expiration') %}
             <span class="countdown" data-expires="{{ p.futmondo_expiration }}">calculando…</span>
           {% else %} — {% endif %}
         </td>
+        {% if api_enabled %}
         <td data-label="Señales">
           {% if p.penalty_taker %}<span title="Lanza penaltis">🎯</span>{% endif %}
           {% if p.card_risk %}<span title="A una amarilla de sanción">🟨</span>{% endif %}
           {% if p.low_motivation %}<span title="Poco en juego para su equipo">😴</span>{% endif %}
           {% if not (p.penalty_taker or p.card_risk or p.low_motivation) %}—{% endif %}
         </td>
+        {% endif %}
       </tr>
       {% endfor %}
     </tbody>
@@ -134,7 +140,7 @@
         <tr>
           <td data-label="Jugador">{{ p.name }}</td>
           <td data-label="Pos.">{{ p.position }}</td>
-          <td data-label="Precio">{{ p.price or '-' }}</td>
+          <td data-label="Precio">{{ "{:,.0f}".format(p.price|float).replace(",", ".") + "€" if p.price else '—' }}</td>
           <td data-label="Puntuación">{{ p.score or '—' }}</td>
           <td data-label="Valor (pts/M€)">{{ p.value if p.value is not none else '—' }}</td>
         </tr>
@@ -148,12 +154,14 @@
       document.querySelectorAll('.countdown[data-expires]').forEach(el => {
         const diff = new Date(el.dataset.expires) - new Date();
         if (diff <= 0) { el.textContent = 'cerrado'; return; }
-        const h = Math.floor(diff / 3600000);
-        const m = Math.floor((diff % 3600000) / 60000);
-        el.textContent = h > 0 ? `${h}h ${m}m` : `${m}m`;
+        const totalSeconds = Math.floor(diff / 1000);
+        const h = Math.floor(totalSeconds / 3600);
+        const m = Math.floor((totalSeconds % 3600) / 60);
+        const s = totalSeconds % 60;
+        el.textContent = `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
       });
     }
     updateCountdowns();
-    setInterval(updateCountdowns, 30000);
+    setInterval(updateCountdowns, 1000);
   </script>
 {% endblock %}

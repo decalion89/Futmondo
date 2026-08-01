@@ -155,7 +155,8 @@ def sync_all():
             # Calendario: preferimos el partido real + cuotas de Futmondo
             # (dato directo de tu propia liga); si no hay, caemos al
             # calendario/estadísticas de API-Football.
-            futmondo_match = next_match_index.get(player.get("futmondo_team_id"))
+            futmondo_match = next_match_index.get(player.get("futmondo_team_id")) \
+                or next_match_index.get(player.get("team"))
             futmondo_win_prob = futmondo_match.get("win_prob") if futmondo_match else None
             api_fixture = swing["fixtures"][0] if swing["fixtures"] else None
 

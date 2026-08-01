@@ -45,7 +45,7 @@
         <td data-label="Pos.">{{ p.position }}</td>
         <td data-label="Equipo">{{ p.team }}</td>
         <td data-label="Precio">
-          {{ p.price or '-' }}
+          {{ "{:,.0f}".format(p.price|float).replace(",", ".") + "€" if p.price else '—' }}
           {% if p.get('price_trend') == 'up' %}<span class="trend-up" title="Subiendo de valor">▲</span>
           {% elif p.get('price_trend') == 'down' %}<span class="trend-down" title="Bajando de valor">▼</span>
           {% endif %}
@@ -70,12 +70,14 @@
       document.querySelectorAll('.countdown[data-expires]').forEach(el => {
         const diff = new Date(el.dataset.expires) - new Date();
         if (diff <= 0) { el.textContent = 'cerrado'; return; }
-        const h = Math.floor(diff / 3600000);
-        const m = Math.floor((diff % 3600000) / 60000);
-        el.textContent = h > 0 ? `${h}h ${m}m` : `${m}m`;
+        const totalSeconds = Math.floor(diff / 1000);
+        const h = Math.floor(totalSeconds / 3600);
+        const m = Math.floor((totalSeconds % 3600) / 60);
+        const s = totalSeconds % 60;
+        el.textContent = `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
       });
     }
     updateCountdowns();
-    setInterval(updateCountdowns, 30000);
+    setInterval(updateCountdowns, 1000);
   </script>
 {% endblock %}

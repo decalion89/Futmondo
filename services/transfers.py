@@ -132,7 +132,8 @@ def rank_market(market_listings, benchmark_value=scoring.DEFAULT_VALUE_BENCHMARK
         if futmondo_form is None:
             futmondo_form = scoring.price_percentile_base(listing.get("price"), position, position_price_index)
             score_from_price = futmondo_form is not None
-        futmondo_match = next_match_index.get(listing.get("futmondo_team_id"))
+        futmondo_match = next_match_index.get(listing.get("futmondo_team_id")) \
+            or next_match_index.get(listing.get("team"))
         futmondo_win_prob = futmondo_match.get("win_prob") if futmondo_match else None
         next_rival = (futmondo_match or {}).get("rival")
 
