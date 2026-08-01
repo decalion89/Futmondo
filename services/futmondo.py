@@ -133,6 +133,22 @@ class FutmondoClient:
         Confirmado con datos reales (2026-08-01) en `/1/match/list`."""
         return self._post("/1/match/list")
 
+    def get_championship_players(self):
+        """TODOS los jugadores de tu liga en una sola llamada — plantillas de
+        cada rival, jugadores sin dueño y mercado, ya sea que estén fichados
+        o no (`userteamId`/`userteam` presente o no) — confirmado en
+        `/5/league/championshipplayers` el 2026-08-02 (513 jugadores para
+        una liga de LaLiga completa). Sustituye a tener que pedir la
+        plantilla de cada rival una por una."""
+        return self._post("/5/league/championshipplayers")
+
+    def get_real_teams(self):
+        """Los 20 equipos reales de LaLiga con su id interno de Futmondo
+        (distinto del id de equipo-manager) — confirmado en
+        `/1/league/championshipteams` el 2026-08-02. Sirve para traducir el
+        `teamId` de `get_championship_players()` a un nombre de equipo."""
+        return self._post("/1/league/championshipteams")
+
 
 # Confirmado con datos reales (2026-08-01): el campo de posición es `role`,
 # en español y en minúsculas.
@@ -151,17 +167,23 @@ def _map_position(role):
 
 
 def _map_status(status):
-    """Traduce el campo `status` real de Futmondo (visto: "injured2" para un
-    lesionado) a nuestros códigos internos. No hemos visto todavía un
-    ejemplo de sancionado, así que cualquier valor no reconocido pero no
-    vacío se trata como "duda" para no perder la señal."""
+    """Traduce el campo `status` real de Futmondo a nuestros códigos
+    internos. Confirmado contra datos reales el 2026-08-02: "injured"/
+    "injured2" (lesionado), "redcard" (tarjeta roja, sancionado para el
+    próximo partido), "doubt" (duda), "ok"/"" (disponible). Cualquier otro
+    valor no vacío y no reconocido se trata como "duda" para no perder la
+    señal."""
     if not status:
         return None
     s = str(status).lower()
+    if s == "ok":
+        return None
     if "injur" in s or "lesion" in s:
         return "lesionado"
-    if "suspend" in s or "sancion" in s:
+    if "suspend" in s or "sancion" in s or "redcard" in s or "card" in s:
         return "sancionado"
+    if "doubt" in s or "duda" in s:
+        return "duda"
     return "duda"
 
 
@@ -381,37 +403,57 @@ def normalize_league_teams(raw):
     return teams, configuration
 
 
-def collect_known_players(client):
-    """Reúne los jugadores de las plantillas de TODOS los rivales de tu
-    liga más el mercado actual (tu propia plantilla la añade quien llame a
-    esto, ya la tiene local). En pretemporada, sin partidos jugados
-    todavía, esto es la mejor base para comparar precios entre jugadores de
-    la misma posición (ver scoring.price_percentile_base).
+def real_team_names_by_id(raw):
+    """De /1/league/championshipteams (los 20 equipos reales de LaLiga,
+    confirmado el 2026-08-02): {id de equipo real: nombre}, para traducir el
+    `teamId` de `get_championship_players()` — ahí solo llega el id, no el
+    nombre."""
+    teams = raw if isinstance(raw, list) else []
+    return {t.get("id"): t.get("name") for t in teams if isinstance(t, dict) and t.get("id")}
 
-    Implica varias llamadas (una por rival + mercado), así que se cachea
-    unas horas — el mercado y las plantillas rivales no cambian cada
-    minuto."""
+
+def normalize_championship_players(raw, team_names_by_id=None):
+    """De /5/league/championshipplayers (confirmado el 2026-08-02): TODOS
+    los jugadores de tu liga, fichados por algún rival o no, con la misma
+    forma que normalize_roster() más `owner_team` (nombre del manager que lo
+    tiene, ya viene como texto — es el campo `userteam`) y
+    `owner_userteam_id`. Pasa `team_names_by_id` (de real_team_names_by_id)
+    si necesitas el nombre del equipo real; si no, se queda con el id tal
+    cual."""
+    team_names_by_id = team_names_by_id or {}
+    players = (raw or {}).get("players") or []
+    prepared = [
+        {**p, "team": team_names_by_id.get(p.get("teamId")) or p.get("teamId")}
+        for p in players if isinstance(p, dict)
+    ]
+    normalized = normalize_roster(prepared)
+    for out, src in zip(normalized, prepared):
+        out["owner_team"] = src.get("userteam")
+        out["owner_userteam_id"] = src.get("userteamId")
+    return normalized
+
+
+def collect_known_players(client):
+    """Reúne TODOS los jugadores de tu liga (fichados por rivales, libres o
+    en el mercado) en una sola llamada a /5/league/championshipplayers — tu
+    propia plantilla la añade quien llame a esto, ya la tiene local. Es la
+    base para comparar precios entre jugadores de la misma posición (ver
+    scoring.price_percentile_base).
+
+    Antes esto implicaba una llamada por rival (hasta 8-9 en esta liga), que
+    fue justo lo que obligó a subir el timeout de gunicorn en producción —
+    con el endpoint bulk (confirmado el 2026-08-02) es una sola llamada,
+    igualmente cacheada unas horas."""
     def _fetch():
-        players = []
         try:
-            raw_teams = client.get_league_teams()
-            teams, _ = normalize_league_teams(raw_teams)
+            team_names = real_team_names_by_id(client.get_real_teams())
         except FutmondoError:
-            teams = []
-        for t in teams:
-            if t.get("id") == client.team_id:
-                continue  # la tuya ya la tiene quien llama a esto
-            try:
-                raw_roster = client.get_roster(team_id=t["id"])
-                players.extend(normalize_roster(raw_roster))
-            except FutmondoError:
-                continue
+            team_names = {}
         try:
-            raw_market = client.get_market()
-            players.extend(normalize_roster(raw_market))
+            players = normalize_championship_players(client.get_championship_players(), team_names)
         except FutmondoError:
-            pass
-        return players
+            return []
+        return [p for p in players if p.get("owner_userteam_id") != client.team_id]
 
     key = f"known_players:{client.championship_id}"
     return cache.get_or_set(key, _fetch, ttl=cache.DEFAULT_TTL)

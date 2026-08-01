@@ -10,7 +10,10 @@ motivación), pero no es obligatoria.
 import os
 from services import scoring, cache, futbolfantasy
 from services.api_football import ApiFootballClient, ApiFootballError
-from services.futmondo import FutmondoError, normalize_roster, normalize_league_teams, next_match_by_team, collect_known_players
+from services.futmondo import (
+    FutmondoError, normalize_roster, normalize_league_teams, next_match_by_team,
+    collect_known_players, normalize_championship_players, real_team_names_by_id,
+)
 
 # Mínimo de jugadores disponibles en cada posición para poder completar
 # CUALQUIERA de las formaciones habituales (services.scoring.FORMATIONS) —
@@ -469,20 +472,27 @@ def scan_rival_weaknesses(client):
     bloquear en el mercado (el "clausulazo táctico") o contra quién puedes
     arriesgar más tu propia alineación.
 
-    Implica una llamada por cada rival de tu liga, así que se cachea con un
-    TTL corto (los estados de lesión/sanción no cambian cada minuto, pero sí
-    de un día para otro)."""
+    Una sola llamada al endpoint bulk de jugadores de la liga (en vez de una
+    por rival), así que se cachea con un TTL corto (los estados de lesión/
+    sanción no cambian cada minuto, pero sí de un día para otro)."""
     def _fetch():
         raw_teams = client.get_league_teams()
         teams, _ = normalize_league_teams(raw_teams)
+        try:
+            all_players = normalize_championship_players(client.get_championship_players())
+        except FutmondoError:
+            return []
+        by_owner = {}
+        for p in all_players:
+            owner_id = p.get("owner_userteam_id")
+            if owner_id:
+                by_owner.setdefault(owner_id, []).append(p)
+
         weaknesses = []
         for t in teams:
             if t.get("id") == client.team_id:
                 continue
-            try:
-                roster = normalize_roster(client.get_roster(team_id=t["id"]))
-            except FutmondoError:
-                continue
+            roster = by_owner.get(t.get("id"), [])
             counts = {pos: 0 for pos in MIN_PLAYERS_BY_POSITION}
             for p in roster:
                 position = p.get("position")
@@ -506,25 +516,22 @@ def _fetch_rival_owned_players(client):
     con `owner_team` (quién lo tiene) — a diferencia de collect_known_players
     (que mezcla rivales + mercado sin diferenciar, para el índice de
     precios), aquí necesitamos saber de quién es cada uno para poder decir
-    "fichar a X del equipo de Y". Cacheado: implica una llamada por rival."""
+    "fichar a X del equipo de Y". Una sola llamada al endpoint bulk de
+    jugadores de la liga (`owner_team` ya viene resuelto ahí como
+    `userteam`), cacheada unas horas."""
     def _fetch():
         try:
-            raw_teams = client.get_league_teams()
-            teams, _ = normalize_league_teams(raw_teams)
+            team_names = real_team_names_by_id(client.get_real_teams())
+        except FutmondoError:
+            team_names = {}
+        try:
+            players = normalize_championship_players(client.get_championship_players(), team_names)
         except FutmondoError:
             return []
-        players = []
-        for t in teams:
-            if t.get("id") == client.team_id:
-                continue
-            try:
-                roster = normalize_roster(client.get_roster(team_id=t["id"]))
-            except FutmondoError:
-                continue
-            for p in roster:
-                p["owner_team"] = t.get("name")
-            players.extend(roster)
-        return players
+        return [
+            p for p in players
+            if p.get("owner_userteam_id") and p.get("owner_userteam_id") != client.team_id
+        ]
 
     return cache.get_or_set(f"rival_owned_players:{client.championship_id}", _fetch, ttl=3 * 3600)
 
@@ -544,11 +551,17 @@ def scan_rival_targets(
     estimación nuestra. Solo si por lo que sea ese campo no viniera (no
     debería pasar para un jugador de otro manager) se cae a una estimación
     por `clause_increase_pct`, y solo si ese porcentaje tiene una forma
-    plausible (0-300%): el campo real de Futmondo para ese porcentaje
-    (`enablingClause`) nunca se ha verificado del todo y en producción ha
-    dado valores que generaban importes negativos, así que ante la duda no
-    se muestra un número en vez de mostrar uno probablemente erróneo.
-    `clause_is_estimate` dice si el número mostrado es real o estimado."""
+    plausible.
+
+    `clause_increase_pct` es el campo `enablingClause` de la configuración
+    de la liga tal cual lo da Futmondo: un número de puntos porcentuales
+    (10 significa +10%, no 0.1) — confirmado contra `/1/userteam/information`
+    real el 2026-08-02, donde vino `"enablingClause": 10`. Antes de esa
+    confirmación se interpretó como fracción directa y en producción dio
+    importes negativos con datos de otra liga, así que se sigue exigiendo un
+    rango plausible (0-300 puntos) antes de usarlo; fuera de rango, mejor no
+    mostrar número que mostrar uno erróneo. `clause_is_estimate` dice si el
+    número mostrado es real o estimado."""
     rival_players = _fetch_rival_owned_players(client)
     if not rival_players:
         return [], []
@@ -557,7 +570,7 @@ def scan_rival_targets(
         rival_players, benchmark_value, squad, next_match_index, real_budget_cap, position_price_index,
     )
 
-    plausible_pct = clause_increase_pct is not None and 0 <= clause_increase_pct <= 3
+    plausible_pct = clause_increase_pct is not None and 0 <= clause_increase_pct <= 300
     for r in ranked:
         real_clause = scoring.parse_price(r.get("futmondo_clause_price"))
         if real_clause:
@@ -566,7 +579,7 @@ def scan_rival_targets(
             continue
         current_price = scoring.parse_price(r.get("price"))
         if current_price and plausible_pct:
-            r["clause_estimate"] = round(current_price * (1 + clause_increase_pct))
+            r["clause_estimate"] = round(current_price * (1 + clause_increase_pct / 100))
             r["clause_is_estimate"] = True
         else:
             r["clause_estimate"] = None

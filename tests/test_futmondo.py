@@ -55,6 +55,65 @@ def test_normalize_roster_handles_string_team_not_dict():
     assert result[0]["position"] == "POR"
 
 
+def test_map_status_covers_real_values_seen_2026_08_02():
+    # Confirmado contra /5/league/championshipplayers real: "redcard" existe
+    # como valor de status (tarjeta roja = sancionado el próximo partido) y
+    # "ok" es un valor explícito, no solo el vacío visto hasta ahora.
+    assert futmondo._map_status("redcard") == "sancionado"
+    assert futmondo._map_status("doubt") == "duda"
+    assert futmondo._map_status("ok") is None
+    assert futmondo._map_status("") is None
+    assert futmondo._map_status("injured") == "lesionado"
+
+
+def test_real_team_names_by_id_maps_real_teams_list():
+    raw = [
+        {"id": "504e581e4d8bec9a670000c7", "name": "Barcelona", "logo": "barcelona.png"},
+        {"id": "504e581e4d8bec9a670000c8", "name": "Atlético de Madrid", "logo": "x.png"},
+    ]
+    names = futmondo.real_team_names_by_id(raw)
+    assert names["504e581e4d8bec9a670000c7"] == "Barcelona"
+    assert len(names) == 2
+
+
+def test_normalize_championship_players_maps_ownership_and_team_name():
+    # Forma real confirmada el 2026-08-02 en /5/league/championshipplayers:
+    # jugadores fichados llevan userteamId/userteam, los libres no.
+    raw = {
+        "players": [
+            {
+                "id": "p1", "name": "Pere Milla", "role": "centrocampista",
+                "value": 4919579, "status": "", "points": 0,
+                "average": {"average": 0, "averageLastFive": 0},
+                "userteamId": "5a428257685d790214ee8a12", "userteam": "DRINK NEWTEAM",
+                "teamId": "504e581e4d8bec9a670000d0",
+            },
+            {
+                "id": "p2", "name": "Ivan Villar", "role": "portero",
+                "value": 1000000, "status": "", "points": 0,
+                "average": {"average": 0, "averageLastFive": 0},
+                "teamId": "504e581e4d8bec9a670000d9",
+            },
+        ]
+    }
+    team_names = {"504e581e4d8bec9a670000d0": "Espanyol", "504e581e4d8bec9a670000d9": "Celta de Vigo"}
+    result = futmondo.normalize_championship_players(raw, team_names)
+    assert len(result) == 2
+    owned, free = result
+    assert owned["owner_team"] == "DRINK NEWTEAM"
+    assert owned["owner_userteam_id"] == "5a428257685d790214ee8a12"
+    assert owned["team"] == "Espanyol"
+    assert free["owner_team"] is None
+    assert free["owner_userteam_id"] is None
+    assert free["team"] == "Celta de Vigo"
+
+
+def test_normalize_championship_players_falls_back_to_team_id_without_name_map():
+    raw = {"players": [{"id": "p1", "name": "X", "role": "delantero", "value": 1_000_000, "teamId": "unknown-id"}]}
+    result = futmondo.normalize_championship_players(raw)
+    assert result[0]["team"] == "unknown-id"
+
+
 def test_normalize_roster_maps_real_clause_price_and_fitness_history():
     # Confirmado contra el código fuente de futmondo-utils (get-teams-players.js):
     # `player.clause.price` (precio EXACTO de clausulazo) y

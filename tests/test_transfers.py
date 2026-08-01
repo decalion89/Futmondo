@@ -97,6 +97,13 @@ def test_build_reason_combines_disagreement_with_fringe_message():
 
 
 class _FakeClient:
+    """Simula el endpoint bulk /5/league/championshipplayers: `rosters` es
+    {id de equipo manager: [jugadores]}, y aquí se les añade `userteamId`/
+    `userteam` como haría Futmondo de verdad, y se renombra `team` (nombre
+    de equipo real usado en los tests) a `teamId` — como no hay tabla de
+    equipos reales en el fake, real_team_names_by_id() no resuelve nada y
+    normalize_championship_players cae al propio `teamId` como nombre, que
+    es justo el string que puso el test."""
     team_id = "me"
     championship_id = "champ1"
 
@@ -107,8 +114,20 @@ class _FakeClient:
     def get_league_teams(self):
         return {"teams": self._teams, "configuration": {}}
 
-    def get_roster(self, team_id=None):
-        return {"players": self._rosters.get(team_id, [])}
+    def get_real_teams(self):
+        return []
+
+    def get_championship_players(self):
+        team_names = {t["id"]: t.get("name") for t in self._teams}
+        players = []
+        for owner_id, roster in self._rosters.items():
+            for p in roster:
+                item = dict(p)
+                item["userteamId"] = owner_id
+                item["userteam"] = team_names.get(owner_id, owner_id)
+                item["teamId"] = item.pop("team", None)
+                players.append(item)
+        return {"players": players}
 
 
 def _rival_player(position, status=None):
@@ -182,7 +201,7 @@ def test_scan_rival_targets_uses_real_clause_price_when_available(monkeypatch):
     client = _FakeClient(teams, rosters)
     candidates, _ = transfers.scan_rival_targets(
         client, squad=[], benchmark_value=0.3, next_match_index={}, real_budget_cap=None,
-        position_price_index={}, clause_increase_pct=0.9,  # si se usara, daría un número muy distinto
+        position_price_index={}, clause_increase_pct=90,  # si se usara, daría un número muy distinto
     )
     assert candidates[0]["clause_estimate"] == 18_750_000
     assert candidates[0]["clause_is_estimate"] is False
@@ -200,7 +219,7 @@ def test_scan_rival_targets_returns_scored_candidates_with_clause_estimate(monke
     client = _FakeClient(teams, rosters)
     candidates, errors = transfers.scan_rival_targets(
         client, squad=[], benchmark_value=0.3, next_match_index={}, real_budget_cap=None,
-        position_price_index={}, clause_increase_pct=0.25,
+        position_price_index={}, clause_increase_pct=25,
     )
     assert errors == []
     assert len(candidates) == 1
@@ -226,7 +245,7 @@ def test_scan_rival_targets_excludes_own_team_and_fringe_candidates(monkeypatch)
     client = _FakeClient(teams, rosters)
     candidates, _ = transfers.scan_rival_targets(
         client, squad=[], benchmark_value=0.3, next_match_index={}, real_budget_cap=None,
-        position_price_index={}, clause_increase_pct=0.25,
+        position_price_index={}, clause_increase_pct=25,
     )
     names = {c["name"] for c in candidates}
     assert "MiJugador" not in names  # nunca tu propia plantilla
@@ -240,7 +259,7 @@ def test_scan_rival_targets_empty_without_rival_players(monkeypatch):
     client = _FakeClient(teams, {})
     candidates, errors = transfers.scan_rival_targets(
         client, squad=[], benchmark_value=0.3, next_match_index={}, real_budget_cap=None,
-        position_price_index={}, clause_increase_pct=0.25,
+        position_price_index={}, clause_increase_pct=25,
     )
     assert candidates == []
     assert errors == []
@@ -261,10 +280,30 @@ def test_scan_rival_targets_clause_estimate_none_without_pct(monkeypatch):
     assert candidates[0]["clause_estimate"] is None
 
 
+def test_scan_rival_targets_uses_real_league_enabling_clause_value(monkeypatch):
+    # Confirmado el 2026-08-02 contra /1/userteam/information real: la liga
+    # del usuario tiene "enablingClause": 10, es decir +10%, no 0.1.
+    monkeypatch.setattr(cache, "get_or_set", lambda key, fn, ttl=None: fn())
+    teams = [
+        {"id": "me", "name": "Yo", "teamValue": 1, "points": 0},
+        {"id": "rival1", "name": "Rival Bueno", "teamValue": 1, "points": 0},
+    ]
+    rosters = {"rival1": [_priced_player("Estrella Rival", "DEL", 10_000_000, average=8.0, points=40)]}
+    client = _FakeClient(teams, rosters)
+    candidates, _ = transfers.scan_rival_targets(
+        client, squad=[], benchmark_value=0.3, next_match_index={}, real_budget_cap=None,
+        position_price_index={}, clause_increase_pct=10,
+    )
+    assert candidates[0]["clause_estimate"] == 11_000_000
+    assert candidates[0]["clause_is_estimate"] is True
+
+
 def test_scan_rival_targets_clause_estimate_none_when_pct_implausible(monkeypatch):
-    # Visto en producción: enablingClause (mapeado como clause_increase_pct)
-    # puede dar un valor que produce importes NEGATIVOS — sin verificar el
-    # campo real, mejor no mostrar un número que mostrar uno erróneo.
+    # enablingClause usa -1 como centinela "sin límite/desactivado" en varios
+    # campos de configuración de Futmondo (visto también en rc, mcpw, rcp,
+    # vmb de /1/userteam/information) y en producción con otra liga dio un
+    # valor que generaba importes NEGATIVOS — sin un rango plausible, mejor
+    # no mostrar número que mostrar uno erróneo.
     monkeypatch.setattr(cache, "get_or_set", lambda key, fn, ttl=None: fn())
     teams = [
         {"id": "me", "name": "Yo", "teamValue": 1, "points": 0},
@@ -273,7 +312,7 @@ def test_scan_rival_targets_clause_estimate_none_when_pct_implausible(monkeypatc
     rosters = {"rival1": [_priced_player("Estrella Rival", "DEL", 10_000_000, average=8.0, points=40)]}
     client = _FakeClient(teams, rosters)
 
-    for bad_pct in (-1.2, 5.0):
+    for bad_pct in (-1, 500):
         candidates, _ = transfers.scan_rival_targets(
             client, squad=[], benchmark_value=0.3, next_match_index={}, real_budget_cap=None,
             position_price_index={}, clause_increase_pct=bad_pct,
