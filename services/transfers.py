@@ -110,6 +110,10 @@ def build_reason(r):
     if value is not None:
         tag = " (estimado por precio, sin partidos jugados todavía)" if r.get("score_from_price") else ""
         parts.append(f"{value} pts/M€{tag}")
+    if r.get("score_low_sample"):
+        games = r.get("implied_games_played")
+        plural = "s" if games != 1 else ""
+        parts.append(f"dato con margen: solo {games} partido{plural} contabilizado{plural} todavía, no sabemos si es titular fijo")
     if r.get("next_rival"):
         vs = "vs" if r.get("is_home") else "@"
         rival_txt = f"próximo rival {vs} {r['next_rival']}"
@@ -162,12 +166,17 @@ def rank_market(market_listings, benchmark_value=scoring.DEFAULT_VALUE_BENCHMARK
     ranked = []
     for listing in market_listings:
         position = listing.get("position")
-        futmondo_form = _clean_futmondo_form(listing.get("futmondo_average_last_five")) \
+        raw_form = _clean_futmondo_form(listing.get("futmondo_average_last_five")) \
             or _clean_futmondo_form(listing.get("futmondo_average"))
-        score_from_price = False
-        if futmondo_form is None:
-            futmondo_form = scoring.price_percentile_base(listing.get("price"), position, position_price_index)
-            score_from_price = futmondo_form is not None
+        games_played = scoring.implied_games_played(listing.get("futmondo_points"), listing.get("futmondo_average"))
+        preseason_base = scoring.price_percentile_base(listing.get("price"), position, position_price_index)
+        score_from_price = raw_form is None
+        if score_from_price:
+            futmondo_form = preseason_base
+        else:
+            futmondo_form = scoring.shrink_form_estimate(raw_form, games_played, preseason_base)
+        score_low_sample = raw_form is not None and games_played is not None \
+            and games_played < scoring.LOW_SAMPLE_GAMES_THRESHOLD
         futmondo_match = next_match_index.get(listing.get("futmondo_team_id")) \
             or next_match_index.get(listing.get("team"))
         futmondo_win_prob = futmondo_match.get("win_prob") if futmondo_match else None
@@ -224,6 +233,8 @@ def rank_market(market_listings, benchmark_value=scoring.DEFAULT_VALUE_BENCHMARK
             "worth_bidding_more": worth_bidding_more,
             "team_limit_reached": team_limit_reached,
             "score_from_price": score_from_price,
+            "score_low_sample": score_low_sample,
+            "implied_games_played": games_played,
             "price_trend": scoring.price_trend(listing.get("price"), listing.get("futmondo_price_change")),
         })
 

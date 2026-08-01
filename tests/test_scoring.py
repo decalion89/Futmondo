@@ -409,6 +409,35 @@ def test_price_percentile_base_none_without_data():
     assert scoring.price_percentile_base(None, "DEL", {"DEL": [1, 2, 3]}) is None
 
 
+def test_implied_games_played_derives_from_points_and_average():
+    assert scoring.implied_games_played(30, 6.0) == 5
+    assert scoring.implied_games_played(6.5, 6.5) == 1
+
+
+def test_implied_games_played_none_without_data():
+    assert scoring.implied_games_played(None, 6.0) is None
+    assert scoring.implied_games_played(30, None) is None
+    assert scoring.implied_games_played(0, 6.0) is None
+
+
+def test_shrink_form_estimate_pulls_low_sample_toward_prior():
+    # 1 solo partido contabilizado: el dato real pesa poco frente al prior.
+    shrunk_low = scoring.shrink_form_estimate(observed=9.0, games_played=1, prior=6.0)
+    assert 6.0 < shrunk_low < 9.0
+    assert abs(shrunk_low - 6.75) < 0.01  # (1*9 + 3*6) / (1+3)
+
+    # Con muchos partidos ya jugados, el dato real casi no se toca.
+    shrunk_high = scoring.shrink_form_estimate(observed=9.0, games_played=20, prior=6.0)
+    assert shrunk_high > shrunk_low
+    assert abs(shrunk_high - 8.308) < 0.01  # (10*9 + 3*6) / (10+3), tope en 10 partidos
+
+
+def test_shrink_form_estimate_returns_observed_without_games_or_prior():
+    assert scoring.shrink_form_estimate(7.5, None, 6.0) == 7.5
+    assert scoring.shrink_form_estimate(7.5, 5, None) == 7.5
+    assert scoring.shrink_form_estimate(7.5, 0, 6.0) == 7.5
+
+
 def test_price_trend_classifies_up_down_flat():
     assert scoring.price_trend(10_000_000, 500_000) == "up"    # +5%
     assert scoring.price_trend(10_000_000, -500_000) == "down"  # -5%

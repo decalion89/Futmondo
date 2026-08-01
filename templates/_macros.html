@@ -39,7 +39,7 @@
 
     {% if p.get('score') is not none %}
     <div class="meta-block">
-      <span class="meta-label">Puntuación{% if p.get('score_from_price') %} <span title="Pretemporada: sin partidos jugados todavía, estimado por su precio frente a jugadores de su misma posición">💰</span>{% endif %}</span>
+      <span class="meta-label">Puntuación{% if p.get('score_from_price') %} <span title="Pretemporada: sin partidos jugados todavía, estimado por su precio frente a jugadores de su misma posición">💰</span>{% elif p.get('score_low_sample') %} <span title="Solo {{ p.get('implied_games_played') }} partido(s) contabilizado(s) todavía — dato real pero con margen, no sabemos si va a ser titular fijo">📊</span>{% endif %}</span>
       <span class="meta-value">{{ p.get('score') }}</span>
     </div>
     {% endif %}

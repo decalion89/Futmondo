@@ -26,6 +26,10 @@
   <p class="hint">
     🚫 = ya tienes el máximo de jugadores de ese equipo real permitido en tu liga
     (2 por equipo — ajustable en <code>FUTMONDO_MAX_SAME_TEAM</code>).
+    💰 = todavía sin partidos jugados, la puntuación es una estimación por precio.
+    📊 = ya hay partidos reales pero muy pocos (1-2) — el dato pesa, pero regresionado
+    hacia el precio para no fiarnos de una racha de un solo partido: no podemos saber
+    si va a ser titular fijo hasta que se acumulen más jornadas.
     {% if real_budget_cap is not none %}
     La puja máxima ya tiene en cuenta el tope real que permite tu liga
     (fondos disponibles + el % configurado sobre el valor de tu equipo):
@@ -73,7 +77,7 @@
         </td>
         <td data-label="Tendencia">{{ sparkline(p.get('sparkline')) }}</td>
         {% if api_enabled %}<td data-label="Rating">{{ p.rating or '—' }}</td>{% endif %}
-        <td data-label="Puntuación">{{ p.score or '—' }}{% if p.get('score_from_price') %} <span title="Pretemporada: estimado por precio">💰</span>{% endif %}</td>
+        <td data-label="Puntuación">{{ p.score or '—' }}{% if p.get('score_from_price') %} <span title="Pretemporada: estimado por precio">💰</span>{% elif p.get('score_low_sample') %} <span title="Solo {{ p.get('implied_games_played') }} partido(s) contabilizado(s) todavía — dato real pero con margen">📊</span>{% endif %}</td>
         <td data-label="Valor (pts/M€)"><strong>{{ p.value if p.value is not none else '—' }}</strong></td>
         <td data-label="Puja máxima">
           {% if p.max_bid is not none %}

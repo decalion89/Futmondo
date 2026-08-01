@@ -241,6 +241,37 @@ def build_position_price_index(players):
     return index
 
 
+SHRINKAGE_PRIOR_GAMES = 3  # "peso" del precio como prior — a 10 partidos reales ya casi no influye
+SHRINKAGE_FULL_TRUST_GAMES = 10  # a partir de aquí, tratamos el dato real como plenamente fiable
+LOW_SAMPLE_GAMES_THRESHOLD = 3  # con menos partidos contabilizados, avisamos de que el dato tiene margen
+
+
+def implied_games_played(points, average):
+    """Futmondo no nos da directamente cuántos partidos lleva contabilizados
+    un jugador en su media (`average`), pero si tenemos también sus puntos
+    totales de temporada (`points`), el número de partidos se puede despejar
+    (media = puntos / partidos). Nos hace falta para saber si un dato de
+    forma es ya fiable (muchos partidos jugados) o todavía ruidoso (1-2
+    partidos, donde un doblete puntual puede disparar la media de un
+    suplente ocasional) — sin necesidad de ninguna llamada extra."""
+    if not points or not average:
+        return None
+    return round(points / average)
+
+
+def shrink_form_estimate(observed, games_played, prior):
+    """Regresiona la media real hacia el precio-base (`prior`) cuando todavía
+    respaldan pocos partidos, con un peso que crece según cuántos partidos
+    ya hay detrás del dato — así no anticipamos titularidad segura a partir
+    de 1-2 partidos sueltos, que es justo lo que no podemos saber todavía
+    sin datos de alineaciones probables. Con muchos partidos, el dato real
+    manda casi del todo."""
+    if games_played is None or games_played <= 0 or prior is None:
+        return observed
+    weight_games = min(games_played, SHRINKAGE_FULL_TRUST_GAMES)
+    return round((weight_games * observed + SHRINKAGE_PRIOR_GAMES * prior) / (weight_games + SHRINKAGE_PRIOR_GAMES), 2)
+
+
 def fixture_factor_from_win_prob(win_prob):
     """Convierte la probabilidad de victoria implícita en las cuotas reales
     de Futmondo (mercado de apuestas, ya incorpora lesiones/forma/todo) en

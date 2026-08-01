@@ -164,14 +164,25 @@ def sync_all():
             next_is_home = (futmondo_match or {}).get("is_home") if futmondo_match else (api_fixture or {}).get("is_home")
             next_date = (futmondo_match or {}).get("date") or (api_fixture or {}).get("date")
 
-            futmondo_form = _clean_futmondo_form(player.get("futmondo_average_last_five")) \
+            raw_form = _clean_futmondo_form(player.get("futmondo_average_last_five")) \
                 or _clean_futmondo_form(player.get("futmondo_average"))
-            preseason_base = None
-            if futmondo_form is None:
-                preseason_base = scoring.price_percentile_base(
-                    player.get("price"), player["position"], position_price_index,
-                )
+            games_played = scoring.implied_games_played(
+                player.get("futmondo_points"), player.get("futmondo_average"),
+            )
+            preseason_base = scoring.price_percentile_base(
+                player.get("price"), player["position"], position_price_index,
+            )
+            if raw_form is None:
+                # Sin ni un partido jugado todavía: el precio es la única
+                # señal que tenemos.
                 futmondo_form = preseason_base
+            else:
+                # Hay dato real, pero lo regresionamos hacia el precio-base
+                # si todavía respaldan pocos partidos — no sabemos si va a
+                # ser titular, así que no confiamos del todo en 1-2 partidos.
+                futmondo_form = scoring.shrink_form_estimate(raw_form, games_played, preseason_base)
+            score_low_sample = raw_form is not None and games_played is not None \
+                and games_played < scoring.LOW_SAMPLE_GAMES_THRESHOLD
 
             score = None
             value = None
@@ -194,7 +205,9 @@ def sync_all():
                 "next_fixtures": swing["fixtures"],
                 "rating": rating,
                 "futmondo_form": futmondo_form,
-                "score_from_price": preseason_base is not None,
+                "score_from_price": raw_form is None,
+                "score_low_sample": score_low_sample,
+                "implied_games_played": games_played,
                 "congestion_count": congestion.get("count"),
                 "congestion_competitions": congestion.get("competitions"),
                 "yellow_cards": yellow_cards,
