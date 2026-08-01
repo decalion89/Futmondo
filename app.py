@@ -48,7 +48,8 @@ def dashboard():
     players = store.load_squad()
     status_cache = store.load_status_cache()
     api_enabled = ApiFootballClient().enabled
-    futmondo_enabled = FutmondoClient().enabled
+    futmondo_client = FutmondoClient()
+    futmondo_enabled = futmondo_client.enabled
 
     rows = []
     for p in players:
@@ -91,6 +92,16 @@ def dashboard():
     concentration = scoring.budget_concentration(prices)
     concentration_warning = concentration is not None and concentration >= scoring.CONCENTRATION_WARNING_THRESHOLD
 
+    # Resumen de decisiones: mejores fichajes disponibles ahora mismo en el
+    # mercado real (sin contar a quienes no podrías fichar por el límite de
+    # jugadores del mismo equipo) y a quién te conviene vender, con el
+    # motivo de cada uno — para no tener que ir a Fichajes a buscarlo.
+    market_result = transfers_service.full_market_ranking(futmondo_client, players, status_cache)
+    top_buys = [r for r in market_result["ranked"] if not r.get("team_limit_reached")][:3]
+    for r in top_buys:
+        r["status"] = r.get("futmondo_status") or "ok"
+    _, top_sells = transfers_service.sell_candidates(players, status_cache, top=2)
+
     return render_template(
         "index.html",
         players=rows,
@@ -107,6 +118,8 @@ def dashboard():
         concentration_warning=concentration_warning,
         last_sync=last_sync,
         lineup=lineup,
+        top_buys=top_buys,
+        top_sells=top_sells,
     )
 
 
@@ -143,60 +156,13 @@ def market():
 def transfers():
     futmondo_client = FutmondoClient()
     api_enabled = ApiFootballClient().enabled
-    errors = []
-    listings = []
-    next_match_index = {}
-
-    if futmondo_client.enabled:
-        try:
-            raw = futmondo_client.get_market()
-            listings = normalize_roster(raw)
-        except FutmondoError as e:
-            errors.append(str(e))
-        try:
-            match_data = futmondo_client.get_match_list()
-            next_match_index = next_match_by_team(match_data)
-        except FutmondoError as e:
-            errors.append(f"No se pudo leer el calendario de Futmondo: {e}")
 
     squad = store.load_squad()
     status_cache = store.load_status_cache()
     unavailable, worst_value = transfers_service.sell_candidates(squad, status_cache)
-    squad_values = [status_cache.get(p["id"], {}).get("value") for p in squad]
-    benchmark_value = scoring.squad_value_benchmark(squad_values)
 
-    position_price_index = {}
-    if futmondo_client.enabled:
-        try:
-            position_price_index = scoring.build_position_price_index(collect_known_players(futmondo_client) + squad)
-        except FutmondoError as e:
-            errors.append(f"No se pudo leer precios de referencia de la liga: {e}")
-
-    # Tope real de puja según la configuración de tu liga (fondos + % sobre
-    # el valor de tu equipo) — si no lo conseguimos, seguimos solo con el
-    # tope por rentabilidad.
-    real_budget_cap = None
-    resale_lock_days = None
-    if futmondo_client.enabled:
-        try:
-            raw_teams = futmondo_client.get_league_teams()
-            teams, configuration = normalize_league_teams(raw_teams)
-            resale_lock_days = configuration.get("resale_lock_days")
-            my_team = next((t for t in teams if t["id"] == futmondo_client.team_id), None)
-            if my_team:
-                real_budget_cap = scoring.real_budget_max_bid(
-                    configuration.get("budget"), my_team.get("team_value"),
-                    configuration.get("max_bid_over_funds_pct"),
-                )
-        except FutmondoError as e:
-            errors.append(f"No se pudo leer la configuración de tu liga: {e}")
-
-    ranked = []
-    if listings:
-        ranked, rank_errors = transfers_service.rank_market(
-            listings, benchmark_value, squad, next_match_index, real_budget_cap, position_price_index,
-        )
-        errors.extend(rank_errors)
+    result = transfers_service.full_market_ranking(futmondo_client, squad, status_cache)
+    ranked = result["ranked"]
 
     # Sparkline de tendencia de precio real (histórico día a día de
     # /1/player/summary, cacheado) para los mejores candidatos — no lo
@@ -218,12 +184,12 @@ def transfers():
         ranked=ranked,
         unavailable=unavailable,
         worst_value=worst_value,
-        errors=errors,
+        errors=result["errors"],
         futmondo_enabled=futmondo_client.enabled,
         api_enabled=api_enabled,
-        benchmark_value=benchmark_value,
-        real_budget_cap=real_budget_cap,
-        resale_lock_days=resale_lock_days,
+        benchmark_value=result["benchmark_value"],
+        real_budget_cap=result["real_budget_cap"],
+        resale_lock_days=result["resale_lock_days"],
     )
 
 

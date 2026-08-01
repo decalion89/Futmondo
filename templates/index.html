@@ -74,6 +74,28 @@
     </div>
   {% endif %}
 
+  {% if top_buys or top_sells %}
+  <div class="section-title"><h2>📋 Recomendaciones de hoy</h2></div>
+  <p class="hint">Lo que diría el sistema si tuvieras que decidir ahora mismo, con el motivo de cada uno — la decisión y la ejecución (pujar, vender) siguen siendo tuyas, esto es la parte de "mirar todos los datos" hecha por ti.</p>
+  {% if top_buys %}
+  <h3 style="margin-top:0.75rem;">Fichar</h3>
+  <div class="player-list">
+    {% for p in top_buys %}
+      {{ player_card(p, readonly=true) }}
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% if top_sells %}
+  <h3 style="margin-top:1rem;">Vender</h3>
+  <div class="player-list">
+    {% for p in top_sells %}
+      {{ player_card(p, readonly=true) }}
+    {% endfor %}
+  </div>
+  {% endif %}
+  <p class="hint" style="margin-top:0.5rem;">Detalle completo, más candidatos y hasta cuánto pujar en <a href="{{ url_for('transfers') }}">Fichajes</a>.</p>
+  {% endif %}
+
   {% if lineup %}
   <details class="add-player" open>
     <summary>⚽ Once ideal recomendado ({{ lineup.formation }}) — puntuación total {{ lineup.total }}</summary>
@@ -92,6 +114,22 @@
         {{ player_card(p, readonly=true) }}
       {% endfor %}
     </div>
+    {% endif %}
+    {% if lineup.all_formations and lineup.all_formations|length > 1 %}
+    <h3 style="margin-top:1rem;">Por qué esta formación y no otra</h3>
+    <p class="hint">Puntuación total con tu plantilla disponible en cada formación habitual — cuanto más plana la tabla, menos importa la elección; cuanto más se despegue la primera, más puntos dejas sobre la mesa si juegas otra.</p>
+    <table>
+      <thead><tr><th>Formación</th><th>Puntuación total</th><th>Diferencia vs. la mejor</th></tr></thead>
+      <tbody>
+        {% for f in lineup.all_formations %}
+        <tr class="{{ 'highlight' if loop.first }}">
+          <td data-label="Formación">{{ f.formation }}{% if loop.first %} ⭐{% endif %}</td>
+          <td data-label="Puntuación total">{{ f.total }}</td>
+          <td data-label="Diferencia">{{ '—' if loop.first else '-' + (lineup.total - f.total)|round(2)|string }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
     {% endif %}
   </details>
   {% endif %}
@@ -123,17 +161,29 @@
 
   <details class="add-player">
     <summary>📖 Estrategia: lo que dicen quienes ganan estas ligas</summary>
-    <ul class="hint" style="margin-top:0.75rem; padding-left:1.2rem;">
+    <h3 style="margin-top:0.5rem;">Puntuación y alineación</h3>
+    <ul class="hint" style="margin-top:0.5rem; padding-left:1.2rem;">
       <li><strong>Los defensas/porteros valen más por gol que los delanteros</strong> (6 pts un gol de portero/defensa, 5 de centrocampista, 4 de delantero, en la convención habitual de estos juegos) — ya lo tenemos en cuenta en la puntuación: un central con llegada o buen juego aéreo suma más de lo que parece.</li>
-      <li><strong>Reparto de presupuesto</strong>: 40-50% en 1-2 jugadores clave, el resto en titulares regulares de equipos medios. Te avisamos arriba si tu plantilla está demasiado concentrada.</li>
-      <li><strong>Especulación de mercado</strong>: comprar barato antes de que suba de valor (un suplente que pasa a titular puede multiplicar su precio) y vender en el pico. Pendiente de afinar hasta ver el campo de tendencia de precio real de Futmondo.</li>
+      <li><strong>La portería a cero exige minutos</strong>: en Futmondo hacen falta al menos 75 minutos jugados (60 en modo mixto, 45 en modo prensa) para que un portero o defensa cobre los puntos de portería imbatida. Un central sustituido en el 70' por precaución pierde ese bonus aunque el equipo acabe sin encajar.</li>
+      <li><strong>Las tarjetas siempre restan</strong>, amarilla o roja, según conste en el acta del partido — no compensa alinear a alguien apercibido solo porque juega un partido fácil.</li>
+      <li><strong>El penalti provocado puntúa aparte</strong>: 3 puntos en total (1 por la falta recibida + el resto por provocarlo), independientemente de quién lo transforme — un delantero que gana penaltis con regularidad suma más de lo que parece a simple vista.</li>
+      <li><strong>No hay una formación "correcta" fija</strong>: con extremos desequilibrantes rinde mejor una formación con banda (1-4-3-3), con una defensa sólida y pocos delanteros de garantías puede compensar más una con 5 atrás (1-5-3-2 o 1-3-5-2). Por eso el "once ideal" de arriba prueba las 7 formaciones habituales contra tu plantilla real cada vez, en vez de asumir una fija — la tabla de comparación te dice cuánto pierdes si te encariñas con otra.</li>
+    </ul>
+    <h3 style="margin-top:1rem;">Mercado</h3>
+    <ul class="hint" style="margin-top:0.5rem; padding-left:1.2rem;">
+      <li><strong>Reparto de presupuesto</strong>: 40-50% en 1-2 jugadores clave, el resto en titulares regulares de equipos medios. Mejor 14-16 jugadores útiles que 11 estrellas y un banquillo irrelevante. Te avisamos arriba si tu plantilla está demasiado concentrada.</li>
+      <li><strong>Especulación de mercado</strong>: comprar barato antes de que suba de valor (un suplente que pasa a titular puede multiplicar su precio) y vender en el pico — la columna "Tendencia" de Mercado/Fichajes ya muestra el histórico real de precio día a día para detectarlo.</li>
       <li><strong>No subas cláusulas por rachas puntuales</strong> de jugadores irregulares — una o dos jornadas buenas no cambian el rendimiento habitual (regresión a la media).</li>
-      <li><strong>Las defensas suelen salir más baratas al inicio de mercado</strong> — buen momento para reforzar ahí antes de que suban.</li>
+      <li><strong>Vigila los fichajes reales de cada equipo</strong>: un delantero nuevo puede quitarle minutos a uno de los tuyos aunque no haya pasado nada con su forma. El mercado de fichajes real de LaLiga 2026/27 cierra el <strong>1 de septiembre</strong> — después de esa fecha las plantillas ya están cerradas y los minutos son más predecibles.</li>
+      <li><strong>Los recién ascendidos suelen salir baratos</strong>: Racing de Santander, Deportivo de la Coruña y Málaga vuelven a Primera esta temporada. Sus jugadores parten con precios bajos y, en las primeras jornadas, suelen ser rivales favorables para tus atacantes.</li>
     </ul>
     <p class="hint" style="margin-top:0.5rem;">
-      Consejos sintetizados de guías de jugadores con experiencia en Comunio/Biwenger/Futmondo
+      Consejos sintetizados de guías de jugadores con experiencia en Comunio/Biwenger/Futmondo y de las reglas oficiales de puntuación de Futmondo
       (<a href="https://www.comuniate.com/noticias/3074/guia-definitiva-para-ganar-biwenger-comunio-y-cualquier-fantasy" target="_blank" rel="noopener">Comuniate</a>,
-      <a href="https://biwinner.pro/blog/diez-consejos-para-dominar-tu-liga" target="_blank" rel="noopener">Biwinner</a>) — no son reglas oficiales de Futmondo, es sentido común contrastado de la comunidad.
+      <a href="https://biwinner.pro/blog/diez-consejos-para-dominar-tu-liga" target="_blank" rel="noopener">Biwinner</a>,
+      <a href="https://www.jornadaperfecta.com/blog/estrategia-biwenger/" target="_blank" rel="noopener">Jornada Perfecta</a>,
+      <a href="https://help.futmondo.com/article/91-reglas-del" target="_blank" rel="noopener">reglas oficiales de Futmondo</a>,
+      <a href="https://betbrothers.es/noticias/guia-laliga-2026-27/" target="_blank" rel="noopener">Betbrothers</a>) — las de mercado no son reglas oficiales de Futmondo, es sentido común contrastado de la comunidad; las de puntuación sí lo son.
     </p>
   </details>
 

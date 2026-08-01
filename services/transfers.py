@@ -10,6 +10,7 @@ motivación), pero no es obligatoria.
 import os
 from services import scoring
 from services.api_football import ApiFootballClient, ApiFootballError
+from services.futmondo import FutmondoError, normalize_roster, normalize_league_teams, next_match_by_team, collect_known_players
 
 DEFAULT_MAX_SAME_TEAM = 2  # normas de "Sparka grande y libre!!"; ajustable por si tu liga usa otro límite
 
@@ -100,6 +101,41 @@ def _score_with_api_football(client, standings, name, team_name):
     }
 
 
+def build_reason(r):
+    """Frase corta explicando POR QUÉ destaca (o no) este candidato, a partir
+    de las señales que ya calculamos para él — para que la recomendación no
+    sea una caja negra y puedas decidir tú con el motivo delante."""
+    parts = []
+    value = r.get("value")
+    if value is not None:
+        tag = " (estimado por precio, sin partidos jugados todavía)" if r.get("score_from_price") else ""
+        parts.append(f"{value} pts/M€{tag}")
+    if r.get("next_rival"):
+        vs = "vs" if r.get("is_home") else "@"
+        rival_txt = f"próximo rival {vs} {r['next_rival']}"
+        win_prob = r.get("win_prob")
+        if win_prob is not None and win_prob >= 0.55:
+            rival_txt += f" (favorito, {round(win_prob * 100)}% de ganar según las cuotas)"
+        elif win_prob is not None and win_prob <= 0.3:
+            rival_txt += " (no es favorito, partido cuesta arriba)"
+        parts.append(rival_txt)
+    if r.get("price_trend") == "up":
+        parts.append("precio subiendo, podría encarecerse si esperas")
+    elif r.get("price_trend") == "down":
+        parts.append("precio bajando, buen momento para entrar")
+    if r.get("penalty_taker"):
+        parts.append("lanza penaltis")
+    if r.get("card_risk"):
+        parts.append("a una amarilla de sanción")
+    if r.get("congestion_count") and r["congestion_count"] >= 2:
+        parts.append(f"{r['congestion_count']} partidos en 10 días, riesgo de rotación")
+    if r.get("team_limit_reached"):
+        parts.append(f"ya tienes el máximo de {r.get('team')} en tu plantilla")
+    if not parts:
+        return "Buena puntuación reciente para su precio, sin más señales destacadas todavía."
+    return "; ".join(parts).capitalize()
+
+
 def rank_market(market_listings, benchmark_value=scoring.DEFAULT_VALUE_BENCHMARK, squad=None,
                  next_match_index=None, real_budget_cap=None, position_price_index=None):
     """Puntúa cada jugador del mercado, lo ordena por puntos-por-millón
@@ -136,6 +172,7 @@ def rank_market(market_listings, benchmark_value=scoring.DEFAULT_VALUE_BENCHMARK
             or next_match_index.get(listing.get("team"))
         futmondo_win_prob = futmondo_match.get("win_prob") if futmondo_match else None
         next_rival = (futmondo_match or {}).get("rival")
+        next_is_home = (futmondo_match or {}).get("is_home")
 
         extra = None
         if api_available:
@@ -178,6 +215,8 @@ def rank_market(market_listings, benchmark_value=scoring.DEFAULT_VALUE_BENCHMARK
             "penalty_taker": (extra or {}).get("penalty_taker", False),
             "low_motivation": (extra or {}).get("low_motivation", False),
             "next_rival": next_rival or (extra or {}).get("next_rival"),
+            "is_home": next_is_home,
+            "win_prob": futmondo_win_prob,
             "score": score,
             "value": value,
             "max_bid": max_bid,
@@ -189,6 +228,8 @@ def rank_market(market_listings, benchmark_value=scoring.DEFAULT_VALUE_BENCHMARK
         })
 
     ranked.sort(key=lambda r: (r["team_limit_reached"], r["value"] is None, -(r["value"] or 0)))
+    for r in ranked:
+        r["reason"] = build_reason(r)
     return ranked, errors
 
 
@@ -201,9 +242,81 @@ def sell_candidates(squad, status_cache, top=5):
         info = status_cache.get(p["id"], {})
         status = info.get("status")
         if status in ("lesionado", "sancionado", "duda"):
-            unavailable.append({**p, **info})
+            row = {**p, **info}
+            row["reason"] = row.get("reason") or {
+                "lesionado": "Lesionado según Futmondo, no puntúa mientras dure",
+                "sancionado": "Sancionado, no puede jugar",
+                "duda": "Duda para el próximo partido",
+            }.get(status, "No disponible ahora mismo")
+            unavailable.append(row)
         elif status == "ok" and info.get("value") is not None:
             ranked_ok.append({**p, **info})
 
     ranked_ok.sort(key=lambda r: r["value"])
+    for r in ranked_ok[:top]:
+        r["reason"] = f"Peor relación puntos/precio de tu plantilla ({r['value']} pts/M€) — ese dinero rendiría más en otro sitio"
     return unavailable, ranked_ok[:top]
+
+
+def full_market_ranking(client, squad, status_cache):
+    """Hace todo el trabajo de cruzar el mercado real de Futmondo con tu
+    plantilla y liga: lo llaman tanto Fichajes (tabla completa) como el
+    resumen de recomendaciones del Dashboard, para no duplicar esta lógica
+    en dos sitios. Nunca lanza excepción — degrada devolviendo listas vacías
+    y acumulando el motivo en `errors`, igual que el resto de la app."""
+    errors = []
+    listings = []
+    next_match_index = {}
+
+    if not client.enabled:
+        return {
+            "ranked": [], "errors": errors, "benchmark_value": scoring.DEFAULT_VALUE_BENCHMARK,
+            "real_budget_cap": None, "resale_lock_days": None,
+        }
+
+    try:
+        raw = client.get_market()
+        listings = normalize_roster(raw)
+    except FutmondoError as e:
+        errors.append(str(e))
+    try:
+        match_data = client.get_match_list()
+        next_match_index = next_match_by_team(match_data)
+    except FutmondoError as e:
+        errors.append(f"No se pudo leer el calendario de Futmondo: {e}")
+
+    squad_values = [status_cache.get(p["id"], {}).get("value") for p in squad]
+    benchmark_value = scoring.squad_value_benchmark(squad_values)
+
+    position_price_index = {}
+    try:
+        position_price_index = scoring.build_position_price_index(collect_known_players(client) + squad)
+    except FutmondoError as e:
+        errors.append(f"No se pudo leer precios de referencia de la liga: {e}")
+
+    real_budget_cap = None
+    resale_lock_days = None
+    try:
+        raw_teams = client.get_league_teams()
+        teams, configuration = normalize_league_teams(raw_teams)
+        resale_lock_days = configuration.get("resale_lock_days")
+        my_team = next((t for t in teams if t["id"] == client.team_id), None)
+        if my_team:
+            real_budget_cap = scoring.real_budget_max_bid(
+                configuration.get("budget"), my_team.get("team_value"),
+                configuration.get("max_bid_over_funds_pct"),
+            )
+    except FutmondoError as e:
+        errors.append(f"No se pudo leer la configuración de tu liga: {e}")
+
+    ranked = []
+    if listings:
+        ranked, rank_errors = rank_market(
+            listings, benchmark_value, squad, next_match_index, real_budget_cap, position_price_index,
+        )
+        errors.extend(rank_errors)
+
+    return {
+        "ranked": ranked, "errors": errors, "benchmark_value": benchmark_value,
+        "real_budget_cap": real_budget_cap, "resale_lock_days": resale_lock_days,
+    }

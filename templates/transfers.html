@@ -49,6 +49,7 @@
         {% if api_enabled %}<th title="Partidos en los últimos 10 días, todas las competiciones">Fatiga</th>{% endif %}
         <th>Pujas</th><th>Cierra en</th>
         {% if api_enabled %}<th>Señales</th>{% endif %}
+        <th>Por qué</th>
       </tr>
     </thead>
     <tbody>
@@ -105,6 +106,7 @@
           {% if not (p.penalty_taker or p.card_risk or p.low_motivation) %}—{% endif %}
         </td>
         {% endif %}
+        <td data-label="Por qué" style="white-space:normal; min-width:14rem;">{{ p.reason or '—' }}</td>
       </tr>
       {% endfor %}
     </tbody>
@@ -136,7 +138,7 @@
   {% if worst_value %}
     <h3>Peor relación puntos/precio en tu plantilla</h3>
     <table>
-      <thead><tr><th>Jugador</th><th>Pos.</th><th>Precio</th><th>Puntuación</th><th>Valor (pts/M€)</th></tr></thead>
+      <thead><tr><th>Jugador</th><th>Pos.</th><th>Precio</th><th>Puntuación</th><th>Valor (pts/M€)</th><th>Por qué</th></tr></thead>
       <tbody>
         {% for p in worst_value %}
         <tr>
@@ -145,6 +147,7 @@
           <td data-label="Precio">{{ "{:,.0f}".format(p.price|float).replace(",", ".") + "€" if p.price else '—' }}</td>
           <td data-label="Puntuación">{{ p.score or '—' }}</td>
           <td data-label="Valor (pts/M€)">{{ p.value if p.value is not none else '—' }}</td>
+          <td data-label="Por qué" style="white-space:normal; min-width:14rem;">{{ p.reason or '—' }}</td>
         </tr>
         {% endfor %}
       </tbody>

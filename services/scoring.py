@@ -440,6 +440,7 @@ def best_lineup(available_players, formations=FORMATIONS):
         by_position[pos].sort(key=lambda p: p["score"], reverse=True)
 
     best = None
+    tried = []
     for por, de, ce, dl in formations:
         counts = {"POR": por, "DEF": de, "CEN": ce, "DEL": dl}
         if any(len(by_position[pos]) < n for pos, n in counts.items()):
@@ -448,6 +449,7 @@ def best_lineup(available_players, formations=FORMATIONS):
         for pos, n in counts.items():
             starters.extend(by_position[pos][:n])
         total = round(sum(p["score"] for p in starters), 2)
+        tried.append({"formation": f"{por}-{de}-{ce}-{dl}", "total": total})
         if best is None or total > best["total"]:
             best = {"formation": f"{por}-{de}-{ce}-{dl}", "starters": starters, "total": total}
 
@@ -461,4 +463,9 @@ def best_lineup(available_players, formations=FORMATIONS):
     ]
     bench.sort(key=lambda p: p["score"], reverse=True)
     best["bench"] = bench
+    # Comparativa de todas las formaciones habituales probadas, ordenada de
+    # mejor a peor — así se ve CUÁNTO se gana eligiendo la óptima frente a
+    # otras formaciones típicas, no solo cuál es.
+    tried.sort(key=lambda f: f["total"], reverse=True)
+    best["all_formations"] = tried
     return best

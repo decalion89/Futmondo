@@ -464,6 +464,22 @@ def test_best_lineup_bench_excludes_starters():
     assert "por2" in bench_ids  # el segundo portero, peor puntuado, al banquillo
 
 
+def test_best_lineup_includes_formation_comparison_sorted_best_first():
+    players = (
+        [_p(f"por{i}", "POR", 6.0) for i in range(1)]
+        + [_p(f"def{i}", "DEF", 6.0 + i * 0.1) for i in range(5)]
+        + [_p(f"cen{i}", "CEN", 6.0 + i * 0.1) for i in range(5)]
+        + [_p(f"del{i}", "DEL", 7.0 + i * 0.1) for i in range(3)]
+    )
+    lineup = scoring.best_lineup(players)
+    all_formations = lineup["all_formations"]
+    assert len(all_formations) == len(scoring.FORMATIONS)  # todas caben con esta plantilla
+    totals = [f["total"] for f in all_formations]
+    assert totals == sorted(totals, reverse=True)  # de mejor a peor
+    assert all_formations[0]["formation"] == lineup["formation"]
+    assert all_formations[0]["total"] == lineup["total"]
+
+
 def test_best_lineup_none_when_squad_incomplete():
     # Solo 1 defensa disponible: ninguna formación habitual cabe.
     players = [_p("por1", "POR", 6.0), _p("def1", "DEF", 6.0)]
