@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Liga - Futmondo Manager{% endblock %}
+{% block content %}
+  <div class="section-title"><h2>Tu liga</h2></div>
+  <p class="hint">Explora a tus rivales antes de pujar: qué plantilla tienen, cuánto vale su equipo. Útil para saber quién puede pelear por el mismo jugador que tú, o en qué posición son flojos.</p>
+
+  {% if not futmondo_enabled %}
+    <div class="banner">Configura <code>FUTMONDO_TOKEN</code>/<code>FUTMONDO_USER_ID</code> para ver tu liga (ver README).</div>
+  {% elif error %}
+    <div class="banner">Error consultando la liga: {{ error }}</div>
+  {% endif %}
+
+  {% if configuration.budget %}
+  <div class="stat-grid">
+    <div class="stat-card">
+      <div class="stat-label">Presupuesto inicial</div>
+      <div class="stat-value" style="font-size:1.2rem;">{{ "{:,.0f}".format(configuration.budget).replace(",", ".") }}€</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Por punto</div>
+      <div class="stat-value" style="font-size:1.2rem;">{{ "{:,.0f}".format(configuration.money_per_point).replace(",", ".") if configuration.money_per_point else '—' }}€</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Bloqueo de reventa</div>
+      <div class="stat-value" style="font-size:1.2rem;">{{ configuration.resale_lock_days }} días</div>
+      <div class="stat-sub">desde la compra</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Puja máxima real</div>
+      <div class="stat-value" style="font-size:1.2rem;">Fondos +{{ (configuration.max_bid_over_funds_pct * 100)|round(0, 'floor')|int if configuration.max_bid_over_funds_pct else '—' }}%</div>
+      <div class="stat-sub">del valor de tu equipo</div>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="player-list">
+    {% for t in teams %}
+    <div class="player-card {{ 'status-ok' if t.is_me }}">
+      <div class="avatar">
+        {% if t.photo %}<img src="{{ t.photo }}" alt="" onerror="this.remove()">{% endif %}
+        <span class="avatar-initials">{{ t.name[:2]|upper if t.name else '??' }}</span>
+      </div>
+      <div class="player-main">
+        <div class="player-name">{{ t.name }}{% if t.is_me %} <span class="tag-ok">(tú)</span>{% endif %}</div>
+        <div class="player-sub">Valor de equipo: {{ "{:,.0f}".format(t.team_value).replace(",", ".") if t.team_value else '—' }}€</div>
+      </div>
+      <div class="player-meta">
+        {% if not t.is_me %}
+        <a href="{{ url_for('league_team', team_id=t.id) }}" class="btn btn-sm">Ver plantilla</a>
+        {% endif %}
+      </div>
+    </div>
+    {% else %}
+    <div class="empty-state">Sin datos de liga todavía.</div>
+    {% endfor %}
+  </div>
+{% endblock %}

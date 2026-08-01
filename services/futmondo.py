@@ -62,9 +62,13 @@ class FutmondoClient:
             )
         return answer
 
-    def get_roster(self):
-        """Tu plantilla real de Futmondo (jugadores fichados)."""
-        return self._post("/1/userteam/roster")
+    def get_roster(self, team_id=None):
+        """Tu plantilla real de Futmondo (jugadores fichados). Si pasas
+        `team_id`, trae la plantilla de OTRO participante de tu liga en vez
+        de la tuya (confirmado con datos reales: funciona igual, útil para
+        ver qué tienen los rivales antes de pujar)."""
+        extra = {"userteamId": team_id} if team_id else None
+        return self._post("/1/userteam/roster", extra)
 
     def get_market(self):
         """Mercado de fichajes actual de tu liga."""
@@ -74,6 +78,13 @@ class FutmondoClient:
         return self._post("/1/player/summary", {"playerId": player_id})
 
     def get_championship_teams(self):
+        return self._post("/2/championship/teams")
+
+    def get_league_teams(self):
+        """Todos los participantes de tu liga (nombre, foto, valor de
+        equipo) y la configuración exacta de la liga (presupuesto, días de
+        retención antes de poder revender, % máximo de puja sobre fondos,
+        etc.) — confirmado en `/2/championship/teams`."""
         return self._post("/2/championship/teams")
 
     def get_match_list(self):
@@ -260,3 +271,37 @@ def next_match_by_team(match_list_answer):
                 "draw_prob": probs["draw"] if probs else None,
             }
     return index
+
+
+def normalize_league_teams(raw):
+    """De la respuesta de /2/championship/teams saca la lista de
+    participantes (managers rivales) ordenada por valor de equipo, y la
+    configuración real de la liga en campos con nombre claro."""
+    answer = raw or {}
+    teams = [
+        {
+            "id": t.get("id"),
+            "name": t.get("name"),
+            "photo": t.get("photo") or None,
+            "team_value": t.get("teamValue"),
+            "points": t.get("points"),
+            "is_me": False,  # se marca desde fuera comparando con tu FUTMONDO_TEAM_ID
+        }
+        for t in (answer.get("teams") or [])
+    ]
+    teams.sort(key=lambda t: t.get("team_value") or 0, reverse=True)
+
+    cfg = answer.get("configuration") or {}
+    configuration = {
+        "budget": cfg.get("budget"),
+        "starting_players": cfg.get("numberOfPlayers"),
+        "max_roster_size": cfg.get("maxPlayersInRoster"),
+        "money_per_point": cfg.get("moneyPerPoint"),
+        "money_per_ranking": cfg.get("moneyPerRanking"),
+        "bid_duration_days": cfg.get("bidDuration"),
+        "market_slots": cfg.get("marketPlayers"),
+        "resale_lock_days": cfg.get("playerRetention"),
+        "max_bid_over_funds_pct": cfg.get("mnmp"),
+        "clause_increase_pct": cfg.get("enablingClause"),
+    }
+    return teams, configuration

@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% from "_macros.html" import player_card, position_tabs %}
+{% block title %}{{ team_name or 'Rival' }} - Futmondo Manager{% endblock %}
+{% block content %}
+  <div class="section-title">
+    <h2>{{ team_name or 'Plantilla rival' }}</h2>
+    <a href="{{ url_for('league') }}">&larr; Volver a la liga</a>
+  </div>
+
+  {% if error %}
+    <div class="banner">Error consultando la plantilla: {{ error }}</div>
+  {% endif %}
+
+  {{ position_tabs(positions) }}
+
+  <div class="player-list" id="player-list">
+    {% for p in listings %}
+      {{ player_card(p, readonly=true) }}
+    {% else %}
+    <div class="empty-state">Sin datos todavía.</div>
+    {% endfor %}
+  </div>
+
+  <script>
+    const tabs = document.querySelectorAll('#position-tabs .tab');
+    const cards = document.querySelectorAll('#player-list .player-card');
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        tabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        const pos = tab.dataset.pos;
+        cards.forEach(card => {
+          card.style.display = (pos === 'all' || card.dataset.position === pos) ? '' : 'none';
+        });
+      });
+    });
+  </script>
+{% endblock %}

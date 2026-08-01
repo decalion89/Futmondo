@@ -9,7 +9,7 @@ load_dotenv()
 from services import store, scoring
 from services.sync import sync_all
 from services.api_football import ApiFootballClient
-from services.futmondo import FutmondoClient, FutmondoError, normalize_roster
+from services.futmondo import FutmondoClient, FutmondoError, normalize_roster, normalize_league_teams
 from services import transfers as transfers_service
 
 app = Flask(__name__)
@@ -158,6 +158,53 @@ def transfers():
         futmondo_enabled=futmondo_client.enabled,
         api_enabled=api_enabled,
         benchmark_value=benchmark_value,
+    )
+
+
+@app.route("/liga")
+def league():
+    client = FutmondoClient()
+    teams, configuration, error = [], {}, None
+    if client.enabled:
+        try:
+            raw = client.get_league_teams()
+            teams, configuration = normalize_league_teams(raw)
+            for t in teams:
+                t["is_me"] = t.get("id") == client.team_id
+        except FutmondoError as e:
+            error = str(e)
+    return render_template(
+        "league.html",
+        teams=teams,
+        configuration=configuration,
+        error=error,
+        futmondo_enabled=client.enabled,
+    )
+
+
+@app.route("/liga/<team_id>")
+def league_team(team_id):
+    client = FutmondoClient()
+    listings, team_name, error = [], None, None
+    if client.enabled:
+        try:
+            raw_teams = client.get_league_teams()
+            teams, _ = normalize_league_teams(raw_teams)
+            match = next((t for t in teams if t["id"] == team_id), None)
+            team_name = match["name"] if match else None
+
+            raw_roster = client.get_roster(team_id=team_id)
+            listings = normalize_roster(raw_roster)
+        except FutmondoError as e:
+            error = str(e)
+    return render_template(
+        "league_team.html",
+        listings=listings,
+        team_name=team_name,
+        team_id=team_id,
+        error=error,
+        futmondo_enabled=client.enabled,
+        positions=store.POSITIONS,
     )
 
 

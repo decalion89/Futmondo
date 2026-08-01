@@ -106,3 +106,28 @@ def test_next_match_by_team_indexes_home_and_away():
 def test_next_match_by_team_empty_without_matches():
     assert futmondo.next_match_by_team({}) == {}
     assert futmondo.next_match_by_team(None) == {}
+
+
+def test_normalize_league_teams_sorts_by_value_and_maps_configuration():
+    raw = {
+        "teams": [
+            {"id": "a", "name": "Pobre", "teamValue": 50, "points": 0},
+            {"id": "b", "name": "Rico", "teamValue": 999, "points": 0},
+        ],
+        "configuration": {
+            "budget": 350000000,
+            "playerRetention": 7,
+            "mnmp": 0.25,
+        },
+    }
+    teams, cfg = futmondo.normalize_league_teams(raw)
+    assert [t["name"] for t in teams] == ["Rico", "Pobre"]
+    assert cfg["budget"] == 350000000
+    assert cfg["resale_lock_days"] == 7
+    assert cfg["max_bid_over_funds_pct"] == 0.25
+
+
+def test_normalize_league_teams_empty_without_data():
+    teams, cfg = futmondo.normalize_league_teams({})
+    assert teams == []
+    assert cfg["budget"] is None

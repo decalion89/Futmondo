@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import player_card, position_tabs %}
 {% block title %}Mi plantilla - Futmondo Manager{% endblock %}
 {% block content %}
 
@@ -73,80 +74,11 @@
     </div>
   {% endif %}
 
-  <div class="tabs" id="position-tabs">
-    <button type="button" class="tab active" data-pos="all">Todos</button>
-    {% for pos in positions %}
-      <button type="button" class="tab" data-pos="{{ pos }}">{{ pos }}</button>
-    {% endfor %}
-  </div>
+  {{ position_tabs(positions) }}
 
   <div class="player-list" id="player-list">
     {% for p in players %}
-    <div class="player-card status-{{ p.get('status', 'sin-datos') }}" data-position="{{ p.position }}">
-      <div class="avatar">
-        {% if p.get('photo_url') %}<img src="{{ p.photo_url }}" alt="" onerror="this.remove()">{% endif %}
-        <span class="avatar-initials">{{ p.name[:2]|upper }}</span>
-      </div>
-      <div class="player-main">
-        <div class="player-name">{{ p.name }}</div>
-        <div class="player-sub">{{ p.position }} · {{ p.team }}{% if p.price %} · {{ "{:,.0f}".format(p.price|float).replace(",", ".") }}€{% endif %}</div>
-      </div>
-
-      <div class="player-meta">
-        <span class="badge {{ {'sancionado':'badge-danger','lesionado':'badge-danger','duda':'badge-warn','ok':'badge-ok'}.get(p.get('status'), 'badge-neutral') }}">
-          {% if p.get('status') == 'sancionado' %}🟥 Sancionado
-          {% elif p.get('status') == 'lesionado' %}🤕 Lesionado
-          {% elif p.get('status') == 'duda' %}⚠️ Duda
-          {% elif p.get('status') == 'ok' %}✅ Disponible
-          {% else %}Sin sincronizar
-          {% endif %}
-        </span>
-
-        {% if p.get('rival') %}
-        <div class="meta-block">
-          <span class="meta-label">Rival</span>
-          <span class="meta-value">{{ 'vs' if p.get('is_home') else '@' }} {{ p.get('rival') }}</span>
-        </div>
-        {% endif %}
-
-        {% if p.get('score') is not none %}
-        <div class="meta-block">
-          <span class="meta-label">Puntuación</span>
-          <span class="meta-value">{{ p.get('score') }}</span>
-        </div>
-        {% endif %}
-
-        {% if p.get('value') is not none %}
-        <div class="meta-block">
-          <span class="meta-label">Valor pts/M€</span>
-          <span class="meta-value">{{ p.get('value') }}</span>
-        </div>
-        {% endif %}
-
-        {% if p.get('congestion_count') and p.get('congestion_count') >= 2 %}
-        <span class="badge badge-warn" title="{{ p.get('congestion_competitions')|join(', ') }}">
-          ⚡ {{ p.get('congestion_count') }} partidos en {{ 10 }} días
-        </span>
-        {% endif %}
-
-        {% if p.get('card_risk') %}
-        <span class="badge badge-warn" title="LaLiga suele sancionar a la 5ª amarilla acumulada">🟨 a una amarilla de sanción</span>
-        {% endif %}
-
-        {% if p.get('penalty_taker') %}
-        <span class="badge badge-ok" title="Ha lanzado penaltis esta temporada">🎯 lanza penaltis</span>
-        {% endif %}
-
-        {% if p.get('low_motivation') %}
-        <span class="badge badge-neutral" title="Zona media de la tabla, temporada avanzada: partido de trámite">😴 poco en juego</span>
-        {% endif %}
-
-        <form action="{{ url_for('remove_player', player_id=p.id) }}" method="post" onsubmit="return confirm('¿Eliminar {{ p.name }}?')">
-          <button type="submit" class="btn btn-danger btn-sm" title="Eliminar">✕</button>
-        </form>
-      </div>
-      {% if p.get('reason') %}<div class="hint" style="width:100%;margin-top:0.35rem;">{{ p.get('reason') }}</div>{% endif %}
-    </div>
+      {{ player_card(p) }}
     {% else %}
     <div class="empty-state">Todavía no has añadido jugadores. Importa tu plantilla real o añade uno a mano abajo.</div>
     {% endfor %}
