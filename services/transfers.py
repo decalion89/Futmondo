@@ -488,11 +488,13 @@ def scan_rival_targets(
     abierto (mismo motor, mismas señales reales), así un objetivo bueno no
     se te escapa solo porque nunca sale a subasta libre.
 
-    El importe de clausulazo (`clause_estimate`) es una ESTIMACIÓN: precio
-    actual del jugador + el % de incremento configurado en tu liga —
-    confirma el importe exacto en Futmondo antes de pujar, puede aplicar
-    reglas adicionales que no vemos desde aquí (días desde su última
-    compra, etc.)."""
+    El importe de clausulazo (`clause_estimate`) SOLO se calcula si
+    `clause_increase_pct` tiene una forma plausible de porcentaje (0-300%)
+    — el campo real de Futmondo para esto (`enablingClause`) nunca se ha
+    verificado contra datos reales y en producción ha dado valores que
+    generaban importes NEGATIVOS, así que ante la duda no se muestra un
+    número en vez de mostrar uno probablemente erróneo. Confirma siempre el
+    importe exacto en Futmondo antes de pujar."""
     rival_players = _fetch_rival_owned_players(client)
     if not rival_players:
         return [], []
@@ -501,9 +503,10 @@ def scan_rival_targets(
         rival_players, benchmark_value, squad, next_match_index, real_budget_cap, position_price_index,
     )
 
+    plausible_pct = clause_increase_pct is not None and 0 <= clause_increase_pct <= 3
     for r in ranked:
         current_price = scoring.parse_price(r.get("price"))
-        if current_price and clause_increase_pct is not None:
+        if current_price and plausible_pct:
             r["clause_estimate"] = round(current_price * (1 + clause_increase_pct))
         else:
             r["clause_estimate"] = None

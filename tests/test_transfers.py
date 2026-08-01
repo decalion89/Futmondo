@@ -206,3 +206,23 @@ def test_scan_rival_targets_clause_estimate_none_without_pct(monkeypatch):
         position_price_index={}, clause_increase_pct=None,
     )
     assert candidates[0]["clause_estimate"] is None
+
+
+def test_scan_rival_targets_clause_estimate_none_when_pct_implausible(monkeypatch):
+    # Visto en producción: enablingClause (mapeado como clause_increase_pct)
+    # puede dar un valor que produce importes NEGATIVOS — sin verificar el
+    # campo real, mejor no mostrar un número que mostrar uno erróneo.
+    monkeypatch.setattr(cache, "get_or_set", lambda key, fn, ttl=None: fn())
+    teams = [
+        {"id": "me", "name": "Yo", "teamValue": 1, "points": 0},
+        {"id": "rival1", "name": "Rival Bueno", "teamValue": 1, "points": 0},
+    ]
+    rosters = {"rival1": [_priced_player("Estrella Rival", "DEL", 10_000_000, average=8.0, points=40)]}
+    client = _FakeClient(teams, rosters)
+
+    for bad_pct in (-1.2, 5.0):
+        candidates, _ = transfers.scan_rival_targets(
+            client, squad=[], benchmark_value=0.3, next_match_index={}, real_budget_cap=None,
+            position_price_index={}, clause_increase_pct=bad_pct,
+        )
+        assert candidates[0]["clause_estimate"] is None
