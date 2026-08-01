@@ -115,7 +115,13 @@ def _score_with_api_football(client, standings, name, team_name):
 def build_reason(r):
     """Frase corta explicando POR QUÉ destaca (o no) este candidato, a partir
     de las señales que ya calculamos para él — para que la recomendación no
-    sea una caja negra y puedas decidir tú con el motivo delante."""
+    sea una caja negra y puedas decidir tú con el motivo delante.
+
+    Riesgo/beneficio real de fichar a alguien se reduce a tres preguntas, en
+    este orden — y las tres van SIEMPRE explícitas, nunca en silencio si no
+    tenemos el dato: ¿va a jugar? ¿es titular fijo o solo puntual? ¿dónde
+    saca los puntos (portería a cero si es DEF/POR, gol/asistencia si es
+    CEN/DEL — la convención que usan las guías de estas ligas)?"""
     titular_probability = r.get("titular_probability")
     disagreement = r.get("lineup_disagreement")
 
@@ -132,22 +138,39 @@ def build_reason(r):
     parts = []
     if disagreement:
         parts.append(disagreement)
+
+    # 1. ¿Va a jugar? — la pregunta que manda sobre todas las demás: sin
+    # minutos no hay puntos, por buena que sea la puntuación de al lado.
+    if titular_probability is not None:
+        parts.append(f"¿jugará? {titular_probability}% de probabilidad real de ser titular la próxima jornada")
+    else:
+        parts.append("⚠️ ¿jugará? sin dato real de titularidad — verifica alineaciones antes de fichar")
+
+    # 2. ¿Es titular fijo o solo una racha puntual?
+    if r.get("score_low_sample"):
+        games = r.get("implied_games_played")
+        plural = "s" if games != 1 else ""
+        parts.append(f"solo {games} partido{plural} contabilizado{plural} todavía, no sabemos si es titular fijo")
+
     value = r.get("value")
     if value is not None:
         tag = " (estimado por precio, sin partidos jugados todavía)" if r.get("score_from_price") else ""
         parts.append(f"{value} pts/M€{tag}")
-    if titular_probability is not None:
-        parts.append(f"{titular_probability}% de probabilidad real de ser titular la próxima jornada")
-    if r.get("score_low_sample"):
-        games = r.get("implied_games_played")
-        plural = "s" if games != 1 else ""
-        parts.append(f"dato con margen: solo {games} partido{plural} contabilizado{plural} todavía, no sabemos si es titular fijo")
+
+    # 3. ¿Dónde saca los puntos? Portería a cero para defensas/porteros,
+    # gol/asistencia para centrocampistas/delanteros — no es la misma
+    # lectura del mismo partido favorable.
     if r.get("next_rival"):
         vs = "vs" if r.get("is_home") else "@"
         rival_txt = f"próximo rival {vs} {r['next_rival']}"
         win_prob = r.get("win_prob")
+        position = r.get("position")
         if win_prob is not None and win_prob >= 0.55:
-            rival_txt += f" (favorito, {round(win_prob * 100)}% de ganar según las cuotas)"
+            pct = round(win_prob * 100)
+            if position in ("POR", "DEF"):
+                rival_txt += f" (favorito, {pct}% de ganar — buena opción de portería a cero)"
+            else:
+                rival_txt += f" (favorito, {pct}% de ganar — buena opción de gol/asistencia)"
         elif win_prob is not None and win_prob <= 0.3:
             rival_txt += " (no es favorito, partido cuesta arriba)"
         parts.append(rival_txt)

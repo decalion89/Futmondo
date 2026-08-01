@@ -49,6 +49,36 @@ def test_build_reason_includes_real_probability_for_non_fringe_candidates():
     assert "probabilidad real" in reason.lower()
 
 
+def test_build_reason_always_answers_jugara_never_silent(monkeypatch):
+    # Sin dato de titularidad real, debe decirlo explícitamente en vez de
+    # simplemente omitir la pregunta — precisión: no sabemos algo, se dice.
+    r = {"value": 4.5}
+    reason = transfers.build_reason(r)
+    assert "¿jugará?" in reason.lower()
+    assert "sin dato real de titularidad" in reason.lower()
+
+
+def test_build_reason_jugara_question_comes_first_when_no_disagreement():
+    r = {"value": 4.5, "titular_probability": 80}
+    reason = transfers.build_reason(r)
+    assert reason.lower().startswith("¿jugará?")
+
+
+def test_build_reason_frames_clean_sheet_for_defenders_and_goalkeepers():
+    for position in ("DEF", "POR"):
+        r = {"value": 4.5, "position": position, "next_rival": "Getafe", "is_home": True, "win_prob": 0.7}
+        reason = transfers.build_reason(r)
+        assert "portería a cero" in reason.lower()
+
+
+def test_build_reason_frames_goal_opportunity_for_midfielders_and_forwards():
+    for position in ("CEN", "DEL"):
+        r = {"value": 4.5, "position": position, "next_rival": "Getafe", "is_home": True, "win_prob": 0.7}
+        reason = transfers.build_reason(r)
+        assert "gol" in reason.lower()
+        assert "portería a cero" not in reason.lower()
+
+
 def test_build_reason_leads_with_lineup_disagreement_when_present():
     r = {"value": 4.5, "lineup_disagreement": "⚠️ aviso de prueba"}
     reason = transfers.build_reason(r)
