@@ -33,6 +33,27 @@
   </div>
   {% endif %}
 
+  {% if activity %}
+  <div class="section-title"><h2>Actividad reciente del mercado</h2></div>
+  <p class="hint">Quién de tus rivales ha puesto a quién en venta — para reaccionar rápido, no enterarte tarde.</p>
+  <table>
+    <thead><tr><th>Jugador</th><th>Equipo</th><th>Vendedor</th><th>Precio</th><th>Pujas</th><th>Cuándo</th></tr></thead>
+    <tbody>
+      {% for a in activity %}
+      <tr>
+        <td data-label="Jugador">{{ a.player_name or '—' }}</td>
+        <td data-label="Equipo">{{ a.player_team or '—' }}</td>
+        <td data-label="Vendedor">{{ a.seller_name or '—' }}</td>
+        <td data-label="Precio">{{ "{:,.0f}".format(a.price).replace(",", ".") if a.price else '—' }}€</td>
+        <td data-label="Pujas">{{ a.bids }}</td>
+        <td data-label="Cuándo"><span class="timeago" data-when="{{ a.created }}">{{ a.created }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <div class="section-title"><h2>Rivales</h2></div>
   <div class="player-list">
     {% for t in teams %}
     <div class="player-card {{ 'status-ok' if t.is_me }}">
@@ -54,4 +75,20 @@
     <div class="empty-state">Sin datos de liga todavía.</div>
     {% endfor %}
   </div>
+
+  <script>
+    function updateTimeAgo() {
+      document.querySelectorAll('.timeago[data-when]').forEach(el => {
+        const diffMs = new Date() - new Date(el.dataset.when);
+        const mins = Math.floor(diffMs / 60000);
+        if (mins < 1) { el.textContent = 'ahora mismo'; return; }
+        if (mins < 60) { el.textContent = `hace ${mins} min`; return; }
+        const hours = Math.floor(mins / 60);
+        if (hours < 24) { el.textContent = `hace ${hours}h`; return; }
+        el.textContent = `hace ${Math.floor(hours / 24)}d`;
+      });
+    }
+    updateTimeAgo();
+    setInterval(updateTimeAgo, 60000);
+  </script>
 {% endblock %}

@@ -131,3 +131,30 @@ def test_normalize_league_teams_empty_without_data():
     teams, cfg = futmondo.normalize_league_teams({})
     assert teams == []
     assert cfg["budget"] is None
+
+
+def test_normalize_pressroom_maps_and_sorts_by_recent_first():
+    raw = {
+        "news": [
+            {
+                "_player": {"name": "Sergio M."}, "_playerTeam": {"name": "Racing"},
+                "_seller": {"name": "R.C.G."}, "price": 640000, "created": "2026-08-01T05:00:00.000Z",
+                "bids": [],
+            },
+            {
+                "_player": {"name": "Isaac"}, "_playerTeam": {"name": "Sevilla"},
+                "_seller": {"name": "Snoopy"}, "price": 2000000, "created": "2026-08-02T05:00:00.000Z",
+                "bids": [{"x": 1}, {"x": 2}],
+            },
+        ]
+    }
+    items = futmondo.normalize_pressroom(raw)
+    assert len(items) == 2
+    assert items[0]["player_name"] == "Isaac"  # más reciente primero
+    assert items[0]["bids"] == 2
+    assert items[1]["seller_name"] == "R.C.G."
+
+
+def test_normalize_pressroom_empty_without_data():
+    assert futmondo.normalize_pressroom({}) == []
+    assert futmondo.normalize_pressroom(None) == []

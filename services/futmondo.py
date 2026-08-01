@@ -77,7 +77,18 @@ class FutmondoClient:
         return self._post("/1/market/players", {"type": "market"})
 
     def get_player_summary(self, player_id):
+        """Ficha completa de un jugador: incluye `prices`, su historial de
+        precio día a día (no solo la variación puntual del roster/mercado)
+        — confirmado con datos reales (2026-08-01)."""
         return self._post("/1/player/summary", {"playerId": player_id})
+
+    def get_pressroom(self):
+        """Actividad reciente del mercado de tu liga: quién ha puesto a
+        quién en venta (con vendedor, precio, pujas ya recibidas) —
+        confirmado en `/1/locker/pressroom`. Inteligencia competitiva: te
+        enteras de movimientos de tus rivales sin tener que estar mirando
+        el mercado a cada rato."""
+        return self._post("/1/locker/pressroom")
 
     def get_championship_teams(self):
         return self._post("/2/championship/teams")
@@ -351,4 +362,38 @@ def collect_known_players(client):
         return players
 
     key = f"known_players:{client.championship_id}"
+    return cache.get_or_set(key, _fetch, ttl=cache.DEFAULT_TTL)
+
+
+def normalize_pressroom(raw):
+    """Actividad reciente del mercado de tu liga (de /1/locker/pressroom):
+    quién ha puesto a quién en venta, a qué precio, y cuántas pujas lleva."""
+    news = (raw or {}).get("news") or []
+    items = []
+    for n in news:
+        items.append({
+            "player_name": (n.get("_player") or {}).get("name"),
+            "player_team": (n.get("_playerTeam") or {}).get("name"),
+            "seller_name": (n.get("_seller") or {}).get("name"),
+            "price": n.get("price"),
+            "created": n.get("created"),
+            "bids": len(n.get("bids") or []),
+        })
+    items.sort(key=lambda i: i.get("created") or "", reverse=True)
+    return items
+
+
+def get_price_history(client, player_id):
+    """Historial de precio día a día de un jugador (campo `prices` de
+    /1/player/summary) como lista de {date, price}, más antiguo primero.
+    Se cachea porque no cambia más de una vez al día."""
+    def _fetch():
+        raw = client.get_player_summary(player_id)
+        data = (raw or {}).get("data") or {}
+        prices = (raw or {}).get("prices") or []
+        history = [{"date": p.get("date"), "price": p.get("price")} for p in prices if p.get("price")]
+        history.sort(key=lambda p: p.get("date") or "")
+        return {"history": history, "current_price": data.get("value")}
+
+    key = f"price_history:{player_id}"
     return cache.get_or_set(key, _fetch, ttl=cache.DEFAULT_TTL)

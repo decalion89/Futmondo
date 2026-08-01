@@ -11,7 +11,7 @@ from services.sync import sync_all
 from services.api_football import ApiFootballClient
 from services.futmondo import (
     FutmondoClient, FutmondoError, normalize_roster, normalize_league_teams,
-    next_match_by_team, collect_known_players,
+    next_match_by_team, collect_known_players, normalize_pressroom,
 )
 from services import transfers as transfers_service
 
@@ -202,6 +202,7 @@ def transfers():
 def league():
     client = FutmondoClient()
     teams, configuration, error = [], {}, None
+    activity = []
     if client.enabled:
         try:
             raw = client.get_league_teams()
@@ -210,10 +211,16 @@ def league():
                 t["is_me"] = t.get("id") == client.team_id
         except FutmondoError as e:
             error = str(e)
+        try:
+            raw_pressroom = client.get_pressroom()
+            activity = normalize_pressroom(raw_pressroom)
+        except FutmondoError as e:
+            error = error or str(e)
     return render_template(
         "league.html",
         teams=teams,
         configuration=configuration,
+        activity=activity,
         error=error,
         futmondo_enabled=client.enabled,
     )
