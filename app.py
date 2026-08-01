@@ -401,5 +401,17 @@ def sync():
     return redirect(url_for("dashboard"))
 
 
+@app.route("/debug/championship-teams")
+def debug_championship_teams():
+    """TEMPORAL: inspeccionar la respuesta completa de /2/championship/teams
+    en busca de campos sin mapear (p.ej. el modo de puntuación de la liga).
+    Se retira tras confirmar la estructura."""
+    client = FutmondoClient()
+    try:
+        return client.get_championship_teams()
+    except FutmondoError as e:
+        return {"error": str(e)}
+
+
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
