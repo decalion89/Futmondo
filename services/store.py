@@ -64,6 +64,8 @@ def import_roster(normalized_players):
             "futmondo_average_last_five": p.get("futmondo_average_last_five"),
             "futmondo_points": p.get("futmondo_points"),
             "futmondo_rating": p.get("futmondo_rating"),
+            "futmondo_price_change": p.get("futmondo_price_change"),
+            "futmondo_buy_price": p.get("futmondo_buy_price"),
             "photo_url": p.get("photo_url") or prev.get("photo_url"),
             "api_football_id": prev.get("api_football_id"),
             "api_football_team_id": prev.get("api_football_team_id"),

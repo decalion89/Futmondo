@@ -185,6 +185,11 @@ def normalize_roster(raw):
             # cuándo cierra la puja y cuántas pujas lleva ya.
             "futmondo_expiration": p.get("expirationDate"),
             "futmondo_bids": p.get("numberOfBids"),
+            # Variación de precio reciente y precio al que lo compraste (si
+            # fue una compra activa tuya por mercado) — para especular
+            # comprando barato antes de que suba / vendiendo en el pico.
+            "futmondo_price_change": p.get("change"),
+            "futmondo_buy_price": p.get("buyPrice"),
         })
     return normalized
 

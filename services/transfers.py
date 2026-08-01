@@ -184,6 +184,7 @@ def rank_market(market_listings, benchmark_value=scoring.DEFAULT_VALUE_BENCHMARK
             "worth_bidding_more": worth_bidding_more,
             "team_limit_reached": team_limit_reached,
             "score_from_price": score_from_price,
+            "price_trend": scoring.price_trend(listing.get("price"), listing.get("futmondo_price_change")),
         })
 
     ranked.sort(key=lambda r: (r["team_limit_reached"], r["value"] is None, -(r["value"] or 0)))

@@ -59,6 +59,8 @@ def dashboard():
         if "status" not in info and p.get("futmondo_status"):
             row["status"] = p["futmondo_status"]
             row["reason"] = "Marcado por Futmondo"
+        row["price_trend"] = scoring.price_trend(p.get("price"), p.get("futmondo_price_change"))
+        row["purchase_profit"] = scoring.purchase_profit(p.get("price"), p.get("futmondo_buy_price"))
         rows.append(row)
 
     order = {"sancionado": 0, "lesionado": 1, "duda": 2, "ok": 3}
@@ -113,6 +115,8 @@ def market():
         try:
             raw = client.get_market()
             listings = normalize_roster(raw)
+            for p in listings:
+                p["price_trend"] = scoring.price_trend(p.get("price"), p.get("futmondo_price_change"))
         except FutmondoError as e:
             error = str(e)
     return render_template(

@@ -42,7 +42,12 @@
         </td>
         <td data-label="Pos.">{{ p.position }}</td>
         <td data-label="Equipo">{{ p.team }}</td>
-        <td data-label="Precio">{{ p.price or '-' }}</td>
+        <td data-label="Precio">
+          {{ p.price or '-' }}
+          {% if p.get('price_trend') == 'up' %}<span class="trend-up" title="Subiendo de valor">▲</span>
+          {% elif p.get('price_trend') == 'down' %}<span class="trend-down" title="Bajando de valor">▼</span>
+          {% endif %}
+        </td>
         <td data-label="Pujas">{{ p.get('futmondo_bids', 0) }}</td>
         <td data-label="Cierra en">
           {% if p.get('futmondo_expiration') %}

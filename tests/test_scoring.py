@@ -407,3 +407,25 @@ def test_price_percentile_base_ranks_cheap_and_expensive_players():
 def test_price_percentile_base_none_without_data():
     assert scoring.price_percentile_base(1_000_000, "DEL", {}) is None
     assert scoring.price_percentile_base(None, "DEL", {"DEL": [1, 2, 3]}) is None
+
+
+def test_price_trend_classifies_up_down_flat():
+    assert scoring.price_trend(10_000_000, 500_000) == "up"    # +5%
+    assert scoring.price_trend(10_000_000, -500_000) == "down"  # -5%
+    assert scoring.price_trend(10_000_000, 50_000) == "flat"    # +0.5%, ruido
+
+
+def test_price_trend_none_without_data():
+    assert scoring.price_trend(None, 500_000) is None
+    assert scoring.price_trend(10_000_000, None) is None
+
+
+def test_purchase_profit_computes_gain_and_loss():
+    assert scoring.purchase_profit(current_value=12_000_000, buy_price=10_000_000) == 2_000_000
+    assert scoring.purchase_profit(current_value=8_000_000, buy_price=10_000_000) == -2_000_000
+
+
+def test_purchase_profit_none_when_not_actively_bought():
+    # buyPrice=0 en Futmondo significa "no comprado por mercado" (reparto inicial)
+    assert scoring.purchase_profit(current_value=12_000_000, buy_price=0) is None
+    assert scoring.purchase_profit(current_value=12_000_000, buy_price=None) is None

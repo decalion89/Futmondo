@@ -6,7 +6,18 @@
   </div>
   <div class="player-main">
     <div class="player-name">{{ p.name }}</div>
-    <div class="player-sub">{{ p.position }} · {{ p.team }}{% if p.price %} · {{ "{:,.0f}".format(p.price|float).replace(",", ".") }}€{% endif %}</div>
+    <div class="player-sub">
+      {{ p.position }} · {{ p.team }}{% if p.price %} · {{ "{:,.0f}".format(p.price|float).replace(",", ".") }}€{% endif %}
+      {% if p.get('price_trend') == 'up' %}<span class="trend-up" title="Subiendo de valor">▲</span>
+      {% elif p.get('price_trend') == 'down' %}<span class="trend-down" title="Bajando de valor">▼</span>
+      {% endif %}
+    </div>
+    {% if p.get('purchase_profit') %}
+      <div class="{{ 'trend-up' if p.purchase_profit > 0 else 'trend-down' }}" style="font-size:0.78rem;">
+        {{ '+' if p.purchase_profit > 0 }}{{ "{:,.0f}".format(p.purchase_profit).replace(",", ".") }}€ desde que lo compraste
+        {% if p.purchase_profit > 0 %}— valóralo para vender{% endif %}
+      </div>
+    {% endif %}
   </div>
 
   <div class="player-meta">

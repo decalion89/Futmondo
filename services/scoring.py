@@ -377,3 +377,36 @@ def real_budget_max_bid(budget, team_value, max_bid_over_funds_pct):
         return None
     funds = budget - team_value
     return round(funds + max_bid_over_funds_pct * team_value)
+
+
+PRICE_TREND_THRESHOLD = 0.02  # % de variación a partir del cual lo consideramos una tendencia, no ruido
+
+
+def price_trend(price, price_change):
+    """Clasifica la variación de precio reciente (campo real `change` de
+    Futmondo) en "subiendo"/"bajando"/"estable", relativa al precio actual
+    para que un mismo cambio en € pese distinto en un jugador barato que en
+    uno caro. Útil para especular: comprar antes de que siga subiendo,
+    vender antes de que empiece a bajar."""
+    parsed_price = parse_price(price)
+    parsed_change = parse_price(price_change) if price_change is not None else None
+    if not parsed_price or parsed_change is None:
+        return None
+    ratio = parsed_change / parsed_price
+    if ratio >= PRICE_TREND_THRESHOLD:
+        return "up"
+    if ratio <= -PRICE_TREND_THRESHOLD:
+        return "down"
+    return "flat"
+
+
+def purchase_profit(current_value, buy_price):
+    """Ganancia (o pérdida) de valor desde que compraste el jugador por
+    mercado. `buyPrice` de Futmondo viene a 0 cuando el jugador no fue una
+    compra activa tuya (reparto inicial de la plantilla), así que en ese
+    caso no tiene sentido calcular nada."""
+    parsed_value = parse_price(current_value)
+    parsed_buy = parse_price(buy_price)
+    if not parsed_buy or parsed_value is None:
+        return None
+    return round(parsed_value - parsed_buy)
