@@ -202,6 +202,21 @@ def sync_all():
             # antes que un rival que solo mire una fuente.
             lineup_disagreement = scoring.detect_lineup_disagreement(status, lineup_info)
 
+            # Detalle real de la lesión (motivo + fecha de regreso estimada)
+            # cuando Futmondo ya lo marca como no disponible — mismo fetch
+            # de equipo que ya hacíamos arriba, cero peticiones nuevas.
+            if status in ("lesionado", "duda"):
+                injury_detail = futbolfantasy.find_player_injury_detail(player["name"], player.get("team"))
+                if injury_detail:
+                    detail_parts = [p for p in (injury_detail.get("reason"), injury_detail.get("expected_return")) if p]
+                    if detail_parts:
+                        reason = " — ".join(detail_parts)
+
+            # ¿Su equipo real lo tiene en la lista de posibles salidas?
+            # Señal directa de que podría dejar el club pronto, antes de
+            # que se note en ningún dato de rendimiento.
+            transfer_rumor = futbolfantasy.find_player_transfer_rumor(player["name"], player.get("team"))
+
             score = None
             value = None
             consistency = None
@@ -246,6 +261,7 @@ def sync_all():
                 "titular_probability": titular_probability,
                 "low_confidence_fringe": low_confidence_fringe,
                 "lineup_disagreement": lineup_disagreement,
+                "transfer_rumor": transfer_rumor,
                 "updated_at": datetime.datetime.utcnow().isoformat(),
             }
         except Exception as e:  # un fallo puntual no debe tumbar el resto

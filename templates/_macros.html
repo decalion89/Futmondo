@@ -76,6 +76,10 @@
     <span class="badge badge-neutral" title="Zona media de la tabla, temporada avanzada: partido de trámite">😴 poco en juego</span>
     {% endif %}
 
+    {% if p.get('transfer_rumor') %}
+    <span class="badge badge-warn" title="futbolfantasy.com lo lista en posibles salidas de {{ p.team }}{% if p.transfer_rumor.other_team %} hacia {{ p.transfer_rumor.other_team }}{% endif %} ({{ p.transfer_rumor.status or 'rumor' }})">✈️ posible salida de {{ p.team }}</span>
+    {% endif %}
+
     {% if not readonly %}
     <form action="{{ url_for('remove_player', player_id=p.id) }}" method="post" onsubmit="return confirm('¿Eliminar {{ p.name }}?')">
       <button type="submit" class="btn btn-danger btn-sm" title="Eliminar">✕</button>

@@ -82,9 +82,16 @@ def test_resolve_team_slug_none_for_unknown_team():
     assert ff._resolve_team_slug(None) is None
 
 
+def _team_data(lineup=None, injuries=None, incoming=None, outgoing=None):
+    return {
+        "lineup": lineup or {}, "injuries": injuries or {},
+        "incoming": incoming or [], "outgoing": outgoing or [],
+    }
+
+
 def test_find_player_probability_exact_and_partial_match(monkeypatch):
     lineup = {"federico-valverde": {"probability": 80, "injured": False, "suspended": False, "unavailable": False}}
-    monkeypatch.setattr(ff, "get_team_lineup_probabilities", lambda team_name: lineup)
+    monkeypatch.setattr(ff, "get_team_page_data", lambda team_name: _team_data(lineup=lineup))
 
     exact = ff.find_player_probability("Federico Valverde", "Real Madrid")
     assert exact["probability"] == 80
@@ -94,9 +101,109 @@ def test_find_player_probability_exact_and_partial_match(monkeypatch):
 
 
 def test_find_player_probability_none_when_not_found(monkeypatch):
-    monkeypatch.setattr(ff, "get_team_lineup_probabilities", lambda team_name: {})
+    monkeypatch.setattr(ff, "get_team_page_data", lambda team_name: _team_data())
     assert ff.find_player_probability("Nadie De Nadie", "Real Madrid") is None
 
 
 def test_get_team_lineup_probabilities_empty_for_unknown_team():
     assert ff.get_team_lineup_probabilities("Equipo Inventado FC") == {}
+
+
+def _injury_block(slug, name, reason, expected_return):
+    return f'''
+    <div class="elemento lesionado">
+      <div class="datos">
+        <a class="jugador" href="https://www.futbolfantasy.com/jugadores/{slug}">{name}</a>
+        <div class="comentario">
+          <span class="lesion">{reason}</span>
+          <span><i class="far fa-calendar"></i> Desde 21/04 (102 días)</span>
+          <span class="gravedad-0">{expected_return}</span>
+        </div>
+      </div>
+    </div>
+    '''
+
+
+def test_parse_team_injuries_extracts_reason_and_return_date():
+    html = f'''<html><body><div class="lesionados_wrapper"><section class="mod lesionados">
+      {_injury_block("der-milito", "Éder Militao", "Lesión en el bíceps femoral", "Baja hasta finales de septiembre")}
+    </section></div></body></html>'''
+    injuries = ff.parse_team_injuries(html)
+    assert injuries["der-milito"]["reason"] == "Lesión en el bíceps femoral"
+    assert injuries["der-milito"]["expected_return"] == "Baja hasta finales de septiembre"
+
+
+def test_parse_team_injuries_empty_without_section():
+    assert ff.parse_team_injuries("<html><body>sin nada</body></html>") == {}
+
+
+def _transfer_block(slug, name, status, team_names):
+    teams_html = "".join(f'<span class="mercado-equipo-nombre">{t}</span>' for t in team_names)
+    return f'''
+    <div class="elemento sancionado mercado">
+      <div class="datos">
+        <a class="jugador" href="https://www.futbolfantasy.com/jugadores/{slug}">{name}</a>
+        <span class="sancion">
+          <span class="mercado-tags"><span class="mercado-tag-label">{status}</span></span>
+          <span class="mercado-ruta">{teams_html}</span>
+        </span>
+      </div>
+    </div>
+    '''
+
+
+def test_parse_team_transfers_extracts_incoming_and_outgoing():
+    html = f'''<html><body>
+      <section><header class="title">Posibles fichajes</header>
+        {_transfer_block("yan-diomande", "Yan Diomande", "Cerrado", ["RB Leipzig", "Real Madrid"])}
+      </section>
+      <section><header class="title">Posibles salidas</header>
+        {_transfer_block("gonzalo-garcia", "Gonzalo García", "Cerrado", ["Real Madrid", "Fulham"])}
+      </section>
+    </body></html>'''
+    incoming, outgoing = ff.parse_team_transfers(html)
+    assert len(incoming) == 1
+    assert incoming[0]["name"] == "Yan Diomande"
+    assert incoming[0]["status"] == "Cerrado"
+    assert incoming[0]["other_team"] == "RB Leipzig"  # el equipo de origen, no el propio
+    assert len(outgoing) == 1
+    assert outgoing[0]["other_team"] == "Fulham"  # el equipo de destino, no el propio
+
+
+def test_parse_team_transfers_empty_without_sections():
+    incoming, outgoing = ff.parse_team_transfers("<html><body>sin nada</body></html>")
+    assert incoming == []
+    assert outgoing == []
+
+
+def test_find_player_injury_detail_exact_match(monkeypatch):
+    injuries = {"rodrygo-goes": {"reason": "Lesión muscular", "expected_return": "Baja hasta septiembre"}}
+    monkeypatch.setattr(ff, "get_team_page_data", lambda team_name: _team_data(injuries=injuries))
+    detail = ff.find_player_injury_detail("Rodrygo Goes", "Real Madrid")
+    assert detail["expected_return"] == "Baja hasta septiembre"
+
+
+def test_find_player_injury_detail_none_when_not_injured(monkeypatch):
+    monkeypatch.setattr(ff, "get_team_page_data", lambda team_name: _team_data())
+    assert ff.find_player_injury_detail("Nadie Lesionado", "Real Madrid") is None
+
+
+def test_get_team_transfer_rumors_returns_both_lists(monkeypatch):
+    incoming = [{"name": "X"}]
+    outgoing = [{"name": "Y"}]
+    monkeypatch.setattr(ff, "get_team_page_data", lambda team_name: _team_data(incoming=incoming, outgoing=outgoing))
+    result_in, result_out = ff.get_team_transfer_rumors("Real Madrid")
+    assert result_in == incoming
+    assert result_out == outgoing
+
+
+def test_find_player_transfer_rumor_matches_outgoing_player(monkeypatch):
+    outgoing = [{"name": "Gonzalo García", "slug": "gonzalo-garcia", "status": "Cerrado", "other_team": "Fulham"}]
+    monkeypatch.setattr(ff, "get_team_page_data", lambda team_name: _team_data(outgoing=outgoing))
+    rumor = ff.find_player_transfer_rumor("Gonzalo García", "Real Madrid")
+    assert rumor["other_team"] == "Fulham"
+
+
+def test_find_player_transfer_rumor_none_when_not_leaving(monkeypatch):
+    monkeypatch.setattr(ff, "get_team_page_data", lambda team_name: _team_data())
+    assert ff.find_player_transfer_rumor("Nadie", "Real Madrid") is None
