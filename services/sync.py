@@ -10,7 +10,7 @@ motivación por clasificación — si no está configurada o falla, la app sigue
 funcionando solo con Futmondo.
 """
 import datetime
-from services import store, scoring
+from services import store, scoring, futbolfantasy
 from services.futmondo import FutmondoClient, FutmondoError, next_match_by_team, collect_known_players
 from services.api_football import ApiFootballClient, ApiFootballError
 
@@ -186,6 +186,17 @@ def sync_all():
             score_low_sample = raw_form is not None and games_played is not None \
                 and games_played < scoring.LOW_SAMPLE_GAMES_THRESHOLD
 
+            # Once probable real de futbolfantasy.com — la señal más directa
+            # que existe de si va a jugar la próxima jornada, mejor que
+            # cualquier proxy por precio o media histórica. Nunca lanza
+            # excepción: si el equipo no se reconoce o falla la petición,
+            # simplemente no hay dato y seguimos con el resto de señales.
+            lineup_info = futbolfantasy.find_player_probability(player["name"], player.get("team"))
+            titular_probability = lineup_info.get("probability") if lineup_info else None
+            low_confidence_fringe = scoring.is_low_confidence_fringe(
+                player.get("price"), has_real_data=raw_form is not None, titular_probability=titular_probability,
+            )
+
             score = None
             value = None
             consistency = None
@@ -194,6 +205,7 @@ def sync_all():
                     player["position"], rating, starter_rate, swing, congestion.get("count"),
                     motivation, penalty_taker, goals, assists, appearences,
                     futmondo_form=futmondo_form, futmondo_win_prob=futmondo_win_prob,
+                    titular_probability=titular_probability,
                 )
                 value = scoring.value_for_money(score, player.get("price"))
                 # Vamos guardando un punto de puntuación por día — todavía no
@@ -226,6 +238,8 @@ def sync_all():
                 "score": score,
                 "value": value,
                 "score_consistency": consistency,
+                "titular_probability": titular_probability,
+                "low_confidence_fringe": low_confidence_fringe,
                 "updated_at": datetime.datetime.utcnow().isoformat(),
             }
         except Exception as e:  # un fallo puntual no debe tumbar el resto

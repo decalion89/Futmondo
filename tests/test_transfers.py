@@ -33,6 +33,22 @@ def test_build_reason_warns_before_anything_else_for_low_confidence_fringe():
     assert "99.0 pts/m€" not in reason.lower()
 
 
+def test_build_reason_fringe_message_cites_real_probability_when_available():
+    # Con dato real de once probable, el motivo debe citar el porcentaje
+    # real en vez del genérico "precio mínimo" (más preciso y verificable).
+    r = {"value": 99.0, "low_confidence_fringe": True, "titular_probability": 5}
+    reason = transfers.build_reason(r)
+    assert "5%" in reason
+    assert "no es de fiar" in reason.lower()
+
+
+def test_build_reason_includes_real_probability_for_non_fringe_candidates():
+    r = {"value": 4.5, "titular_probability": 90}
+    reason = transfers.build_reason(r)
+    assert "90%" in reason
+    assert "probabilidad real" in reason.lower()
+
+
 class _FakeClient:
     team_id = "me"
 

@@ -127,6 +127,28 @@ def test_player_score_defaults_when_no_rating():
     assert score > 0
 
 
+def test_player_score_titular_probability_overrides_starter_rate():
+    swing = {"avg_goals_against_rivals": None, "avg_goals_for_rivals": None}
+    # starter_rate histórico dice "siempre titular", pero el once probable
+    # real de esta semana dice que casi seguro no juega -> debe mandar el
+    # dato real y directo, no la media histórica.
+    high_historical_low_real = scoring.player_score(
+        "CEN", rating=7.0, starter_rate=1.0, swing=swing, titular_probability=5,
+    )
+    low_historical_high_real = scoring.player_score(
+        "CEN", rating=7.0, starter_rate=0.0, swing=swing, titular_probability=95,
+    )
+    assert low_historical_high_real > high_historical_low_real
+
+
+def test_player_score_titular_probability_scales_reliability_monotonically():
+    swing = {"avg_goals_against_rivals": None, "avg_goals_for_rivals": None}
+    low = scoring.player_score("DEL", rating=7.0, starter_rate=None, swing=swing, titular_probability=10)
+    mid = scoring.player_score("DEL", rating=7.0, starter_rate=None, swing=swing, titular_probability=50)
+    high = scoring.player_score("DEL", rating=7.0, starter_rate=None, swing=swing, titular_probability=100)
+    assert low < mid < high
+
+
 def test_squad_value_benchmark_median():
     assert scoring.squad_value_benchmark([0.2, 0.4, 0.6]) == 0.4
     assert scoring.squad_value_benchmark([0.2, 0.6]) == 0.4
@@ -414,6 +436,16 @@ def test_is_low_confidence_fringe_flags_floor_price_without_real_data():
     assert scoring.is_low_confidence_fringe(1_000_000, has_real_data=True) is False  # sí ha jugado, precio bajo no importa
     assert scoring.is_low_confidence_fringe(6_500_000, has_real_data=False) is False  # no está en el precio mínimo
     assert scoring.is_low_confidence_fringe(None, has_real_data=False) is False
+
+
+def test_is_low_confidence_fringe_prioritizes_real_titular_probability():
+    # Con dato real de once probable, manda sobre el proxy de precio, en
+    # cualquier dirección: precio caro pero baja probabilidad real -> fringe;
+    # precio mínimo pero alta probabilidad real -> NO es fringe.
+    assert scoring.is_low_confidence_fringe(20_000_000, has_real_data=True, titular_probability=10) is True
+    assert scoring.is_low_confidence_fringe(1_000_000, has_real_data=False, titular_probability=90) is False
+    assert scoring.is_low_confidence_fringe(1_000_000, has_real_data=False, titular_probability=19) is True
+    assert scoring.is_low_confidence_fringe(1_000_000, has_real_data=False, titular_probability=20) is False
 
 
 def test_implied_games_played_derives_from_points_and_average():

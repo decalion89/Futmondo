@@ -8,7 +8,7 @@ clave configurada, se usa como capa extra (fatiga, riesgo de sanción,
 motivación), pero no es obligatoria.
 """
 import os
-from services import scoring, cache
+from services import scoring, cache, futbolfantasy
 from services.api_football import ApiFootballClient, ApiFootballError
 from services.futmondo import FutmondoError, normalize_roster, normalize_league_teams, next_match_by_team, collect_known_players
 
@@ -116,7 +116,13 @@ def build_reason(r):
     """Frase corta explicando POR QUÉ destaca (o no) este candidato, a partir
     de las señales que ya calculamos para él — para que la recomendación no
     sea una caja negra y puedas decidir tú con el motivo delante."""
+    titular_probability = r.get("titular_probability")
     if r.get("low_confidence_fringe"):
+        if titular_probability is not None:
+            return (
+                f"❓ Solo {titular_probability}% de probabilidad real de salir titular la próxima jornada "
+                "(once probable de futbolfantasy.com) — el pts/M€ que ves no es de fiar aquí"
+            )
         return (
             "❓ Precio mínimo de la plataforma y cero partidos reales todavía — "
             "sin apenas señal de que vaya a tener minutos, el pts/M€ que ves no es de fiar aquí"
@@ -126,6 +132,8 @@ def build_reason(r):
     if value is not None:
         tag = " (estimado por precio, sin partidos jugados todavía)" if r.get("score_from_price") else ""
         parts.append(f"{value} pts/M€{tag}")
+    if titular_probability is not None:
+        parts.append(f"{titular_probability}% de probabilidad real de ser titular la próxima jornada")
     if r.get("score_low_sample"):
         games = r.get("implied_games_played")
         plural = "s" if games != 1 else ""
@@ -200,11 +208,17 @@ def rank_market(market_listings, benchmark_value=scoring.DEFAULT_VALUE_BENCHMARK
             futmondo_form = scoring.shrink_form_estimate(raw_form, games_played, preseason_base)
         score_low_sample = raw_form is not None and games_played is not None \
             and games_played < scoring.LOW_SAMPLE_GAMES_THRESHOLD
+        # Once probable real de futbolfantasy.com — manda sobre el proxy de
+        # precio para decidir si es un fichaje de relleno que no va a jugar.
+        lineup_info = futbolfantasy.find_player_probability(listing.get("name"), listing.get("team"))
+        titular_probability = lineup_info.get("probability") if lineup_info else None
         # Precio mínimo de la plataforma + cero datos reales = sin apenas
         # señal de que vaya a jugar. Sin esto, dividir cualquier puntuación
         # entre un precio así de bajo dispara su pts/M€ por delante de
         # jugadores reales bien valorados, solo por aritmética del precio.
-        low_confidence_fringe = scoring.is_low_confidence_fringe(listing.get("price"), has_real_data=raw_form is not None)
+        low_confidence_fringe = scoring.is_low_confidence_fringe(
+            listing.get("price"), has_real_data=raw_form is not None, titular_probability=titular_probability,
+        )
         futmondo_match = next_match_index.get(listing.get("futmondo_team_id")) \
             or next_match_index.get(listing.get("team"))
         futmondo_win_prob = futmondo_match.get("win_prob") if futmondo_match else None
@@ -229,6 +243,7 @@ def rank_market(market_listings, benchmark_value=scoring.DEFAULT_VALUE_BENCHMARK
             (extra or {}).get("appearences"),
             futmondo_form=futmondo_form,
             futmondo_win_prob=futmondo_win_prob,
+            titular_probability=titular_probability,
         )
 
         value = scoring.value_for_money(score, listing.get("price"))
@@ -254,6 +269,7 @@ def rank_market(market_listings, benchmark_value=scoring.DEFAULT_VALUE_BENCHMARK
             "next_rival": next_rival or (extra or {}).get("next_rival"),
             "is_home": next_is_home,
             "win_prob": futmondo_win_prob,
+            "titular_probability": titular_probability,
             "score": score,
             "value": value,
             "max_bid": max_bid,

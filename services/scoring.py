@@ -246,9 +246,10 @@ def price_percentile_base(price, position, position_prices):
 
 
 FUTMONDO_FLOOR_PRICE = 1_000_000  # precio mínimo de la plataforma: decenas de jugadores de relleno lo comparten
+LOW_TITULAR_PROBABILITY_THRESHOLD = 20  # % de probabilidad de titularidad por debajo del cual tratamos como suplente de relleno
 
 
-def is_low_confidence_fringe(price, has_real_data):
+def is_low_confidence_fringe(price, has_real_data, titular_probability=None):
     """Un jugador al precio MÍNIMO de la plataforma (1M€, el mismo que
     comparten decenas de suplentes/canteranos de todos los equipos) y sin
     ni un partido real jugado no es "barato y con potencial" — es "sin
@@ -257,7 +258,13 @@ def is_low_confidence_fringe(price, has_real_data):
     matemáticamente su pts/M€ por encima de jugadores reales bien
     valorados, aunque el motor no tenga ningún indicio de que vaya a pisar
     el campo. Se usa para NO dejar que estos casos ganen el ranking por
-    pura aritmética del precio."""
+    pura aritmética del precio.
+
+    Si tenemos la probabilidad REAL de titularidad (futbolfantasy.com, el
+    once probable de esta semana), esa señal manda sobre el proxy de
+    precio — es dato directo, no una suposición a partir de cuánto cuesta."""
+    if titular_probability is not None:
+        return titular_probability < LOW_TITULAR_PROBABILITY_THRESHOLD
     parsed = parse_price(price)
     return bool(parsed and parsed <= FUTMONDO_FLOOR_PRICE and not has_real_data)
 
@@ -320,7 +327,7 @@ def fixture_factor_from_win_prob(win_prob):
 def player_score(
     position, rating, starter_rate, swing, congestion_count=None, motivation_factor=1.0,
     penalty_taker=False, goals=None, assists=None, appearences=None,
-    futmondo_form=None, futmondo_win_prob=None,
+    futmondo_form=None, futmondo_win_prob=None, titular_probability=None,
 ):
     """Puntuación relativa para comparar tus propios jugadores disponibles
     entre sí (no es una predicción de puntos Futmondo).
@@ -328,7 +335,13 @@ def player_score(
     Si hay datos propios de Futmondo (media de puntos reales del jugador,
     probabilidad de victoria de las cuotas de su próximo partido), se usan
     con prioridad por ser más directos/fiables; si no, cae en el cálculo
-    basado en API-Football (rating genérico + goles del rival)."""
+    basado en API-Football (rating genérico + goles del rival).
+
+    `titular_probability` (0-100, de futbolfantasy.com) es la señal más
+    directa que existe de si va a jugar la próxima jornada — cuando está
+    disponible, manda sobre `starter_rate` (una media histórica de
+    temporadas, no específica del próximo partido) para calcular cuánto
+    confiar en la puntuación."""
     base = futmondo_form if futmondo_form is not None else (rating if rating is not None else 6.0)
     base += attacking_output_bonus(position, goals, assists, appearences)
 
@@ -350,7 +363,10 @@ def player_score(
         next_rival_form = swing.get("next_rival_form_factor", 1.0) or 1.0
         fixture_factor *= (2.0 - next_rival_form)
 
-    reliability = 0.7 + 0.3 * (starter_rate if starter_rate is not None else 0.5)
+    if titular_probability is not None:
+        reliability = 0.3 + 0.7 * (max(0, min(titular_probability, 100)) / 100)
+    else:
+        reliability = 0.7 + 0.3 * (starter_rate if starter_rate is not None else 0.5)
     fatigue = fatigue_factor(congestion_count)
     penalty_bonus = 1.05 if penalty_taker else 1.0
     return round(base * fixture_factor * reliability * fatigue * (motivation_factor or 1.0) * penalty_bonus, 2)
