@@ -26,6 +26,8 @@
         <th>Pos.</th>
         <th>Equipo</th>
         <th>Precio</th>
+        <th>Pujas</th>
+        <th>Cierra en</th>
       </tr>
     </thead>
     <tbody>
@@ -41,6 +43,12 @@
         <td data-label="Pos.">{{ p.position }}</td>
         <td data-label="Equipo">{{ p.team }}</td>
         <td data-label="Precio">{{ p.price or '-' }}</td>
+        <td data-label="Pujas">{{ p.get('futmondo_bids', 0) }}</td>
+        <td data-label="Cierra en">
+          {% if p.get('futmondo_expiration') %}
+            <span class="countdown" data-expires="{{ p.futmondo_expiration }}">calculando…</span>
+          {% else %} — {% endif %}
+        </td>
       </tr>
       {% endfor %}
     </tbody>
@@ -48,4 +56,18 @@
   {% else %}
   <div class="empty-state">Sin jugadores en el mercado ahora mismo (o pendiente de sincronizar).</div>
   {% endif %}
+
+  <script>
+    function updateCountdowns() {
+      document.querySelectorAll('.countdown[data-expires]').forEach(el => {
+        const diff = new Date(el.dataset.expires) - new Date();
+        if (diff <= 0) { el.textContent = 'cerrado'; return; }
+        const h = Math.floor(diff / 3600000);
+        const m = Math.floor((diff % 3600000) / 60000);
+        el.textContent = h > 0 ? `${h}h ${m}m` : `${m}m`;
+      });
+    }
+    updateCountdowns();
+    setInterval(updateCountdowns, 30000);
+  </script>
 {% endblock %}

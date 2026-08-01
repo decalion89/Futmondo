@@ -101,7 +101,7 @@ def _score_with_api_football(client, standings, name, team_name):
 
 
 def rank_market(market_listings, benchmark_value=scoring.DEFAULT_VALUE_BENCHMARK, squad=None,
-                 next_match_index=None, real_budget_cap=None):
+                 next_match_index=None, real_budget_cap=None, position_price_index=None):
     """Puntúa cada jugador del mercado, lo ordena por puntos-por-millón
     (mejor relación calidad/precio primero) y calcula hasta qué puja
     máxima compensaría pagar. `real_budget_cap` (si se pasa) es el tope
@@ -128,6 +128,10 @@ def rank_market(market_listings, benchmark_value=scoring.DEFAULT_VALUE_BENCHMARK
         position = listing.get("position")
         futmondo_form = _clean_futmondo_form(listing.get("futmondo_average_last_five")) \
             or _clean_futmondo_form(listing.get("futmondo_average"))
+        score_from_price = False
+        if futmondo_form is None:
+            futmondo_form = scoring.price_percentile_base(listing.get("price"), position, position_price_index)
+            score_from_price = futmondo_form is not None
         futmondo_match = next_match_index.get(listing.get("futmondo_team_id"))
         futmondo_win_prob = futmondo_match.get("win_prob") if futmondo_match else None
         next_rival = (futmondo_match or {}).get("rival")
@@ -179,6 +183,7 @@ def rank_market(market_listings, benchmark_value=scoring.DEFAULT_VALUE_BENCHMARK
             "over_real_budget": real_budget_cap is not None and current_price is not None and current_price > real_budget_cap,
             "worth_bidding_more": worth_bidding_more,
             "team_limit_reached": team_limit_reached,
+            "score_from_price": score_from_price,
         })
 
     ranked.sort(key=lambda r: (r["team_limit_reached"], r["value"] is None, -(r["value"] or 0)))

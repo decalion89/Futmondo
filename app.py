@@ -9,7 +9,10 @@ load_dotenv()
 from services import store, scoring
 from services.sync import sync_all
 from services.api_football import ApiFootballClient
-from services.futmondo import FutmondoClient, FutmondoError, normalize_roster, normalize_league_teams, next_match_by_team
+from services.futmondo import (
+    FutmondoClient, FutmondoError, normalize_roster, normalize_league_teams,
+    next_match_by_team, collect_known_players,
+)
 from services import transfers as transfers_service
 
 app = Flask(__name__)
@@ -147,6 +150,13 @@ def transfers():
     squad_values = [status_cache.get(p["id"], {}).get("value") for p in squad]
     benchmark_value = scoring.squad_value_benchmark(squad_values)
 
+    position_price_index = {}
+    if futmondo_client.enabled:
+        try:
+            position_price_index = scoring.build_position_price_index(collect_known_players(futmondo_client) + squad)
+        except FutmondoError as e:
+            errors.append(f"No se pudo leer precios de referencia de la liga: {e}")
+
     # Tope real de puja según la configuración de tu liga (fondos + % sobre
     # el valor de tu equipo) — si no lo conseguimos, seguimos solo con el
     # tope por rentabilidad.
@@ -167,7 +177,7 @@ def transfers():
     ranked = []
     if listings:
         ranked, rank_errors = transfers_service.rank_market(
-            listings, benchmark_value, squad, next_match_index, real_budget_cap,
+            listings, benchmark_value, squad, next_match_index, real_budget_cap, position_price_index,
         )
         errors.extend(rank_errors)
 

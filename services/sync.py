@@ -11,7 +11,7 @@ funcionando solo con Futmondo.
 """
 import datetime
 from services import store, scoring
-from services.futmondo import FutmondoClient, FutmondoError, next_match_by_team
+from services.futmondo import FutmondoClient, FutmondoError, next_match_by_team, collect_known_players
 from services.api_football import ApiFootballClient, ApiFootballError
 
 
@@ -69,12 +69,18 @@ def sync_all():
             api_available = False
 
     next_match_index = {}
+    position_price_index = {}
     if futmondo_client.enabled:
         try:
             match_data = futmondo_client.get_match_list()
             next_match_index = next_match_by_team(match_data)
         except FutmondoError as e:
             errors.append(f"No se pudo leer el calendario de Futmondo: {e}")
+        try:
+            known_players = collect_known_players(futmondo_client) + players
+            position_price_index = scoring.build_position_price_index(known_players)
+        except FutmondoError as e:
+            errors.append(f"No se pudo leer precios de referencia de la liga: {e}")
 
     team_injuries_cache = {}
     team_congestion_cache = {}
@@ -159,6 +165,12 @@ def sync_all():
 
             futmondo_form = _clean_futmondo_form(player.get("futmondo_average_last_five")) \
                 or _clean_futmondo_form(player.get("futmondo_average"))
+            preseason_base = None
+            if futmondo_form is None:
+                preseason_base = scoring.price_percentile_base(
+                    player.get("price"), player["position"], position_price_index,
+                )
+                futmondo_form = preseason_base
 
             score = None
             value = None
@@ -181,6 +193,7 @@ def sync_all():
                 "next_fixtures": swing["fixtures"],
                 "rating": rating,
                 "futmondo_form": futmondo_form,
+                "score_from_price": preseason_base is not None,
                 "congestion_count": congestion.get("count"),
                 "congestion_competitions": congestion.get("competitions"),
                 "yellow_cards": yellow_cards,

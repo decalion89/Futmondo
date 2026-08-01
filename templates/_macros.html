@@ -28,7 +28,7 @@
 
     {% if p.get('score') is not none %}
     <div class="meta-block">
-      <span class="meta-label">Puntuación</span>
+      <span class="meta-label">Puntuación{% if p.get('score_from_price') %} <span title="Pretemporada: sin partidos jugados todavía, estimado por su precio frente a jugadores de su misma posición">💰</span>{% endif %}</span>
       <span class="meta-value">{{ p.get('score') }}</span>
     </div>
     {% endif %}

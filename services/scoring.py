@@ -207,6 +207,40 @@ def attacking_output_bonus(position, goals, assists, appearences):
     return round(contributions_per_game * weight * ATTACKING_BONUS_SCALE, 3)
 
 
+PRESEASON_BASE_MIN = 5.0
+PRESEASON_BASE_MAX = 8.5
+
+
+def price_percentile_base(price, position, position_prices):
+    """En pretemporada no hay partidos jugados todavía, así que no hay
+    rating/forma real de nadie — pero el precio que ya le pone Futmondo a
+    cada jugador SÍ es una señal real (encierra su reputación/potencial,
+    puesto por el propio mercado). Situamos el precio del jugador dentro de
+    los precios de su misma posición que conocemos (tu plantilla + tus
+    rivales + el mercado) y lo convertimos en una base en la misma escala
+    que un rating real (5.0 flojo - 8.5 top), para no dar la misma
+    puntuación a una estrella que a un suplente solo por falta de datos."""
+    prices = sorted(p for p in (position_prices or {}).get(position, []) if p)
+    parsed_price = parse_price(price)
+    if not prices or not parsed_price:
+        return None
+    rank = sum(1 for p in prices if p <= parsed_price)
+    percentile = rank / len(prices)
+    return round(PRESEASON_BASE_MIN + percentile * (PRESEASON_BASE_MAX - PRESEASON_BASE_MIN), 2)
+
+
+def build_position_price_index(players):
+    """A partir de una lista de jugadores ({position, price}), agrupa los
+    precios por posición — la "materia prima" para price_percentile_base."""
+    index = {}
+    for p in players or []:
+        price = parse_price(p.get("price"))
+        position = p.get("position")
+        if price and position:
+            index.setdefault(position, []).append(price)
+    return index
+
+
 def fixture_factor_from_win_prob(win_prob):
     """Convierte la probabilidad de victoria implícita en las cuotas reales
     de Futmondo (mercado de apuestas, ya incorpora lesiones/forma/todo) en

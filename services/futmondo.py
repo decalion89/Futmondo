@@ -11,6 +11,8 @@ puede caducar. Úsala solo para leer tus propios datos.
 import os
 import requests
 
+from services import cache
+
 BASE_URL = "https://api.futmondo.com"
 
 
@@ -179,6 +181,10 @@ def normalize_roster(raw):
             "futmondo_average_last_five": average.get("averageLastFive"),
             "futmondo_points": p.get("points"),
             "futmondo_rating": p.get("rating"),
+            # Solo presentes en jugadores del mercado (no en tu plantilla):
+            # cuándo cierra la puja y cuántas pujas lleva ya.
+            "futmondo_expiration": p.get("expirationDate"),
+            "futmondo_bids": p.get("numberOfBids"),
         })
     return normalized
 
@@ -305,3 +311,39 @@ def normalize_league_teams(raw):
         "clause_increase_pct": cfg.get("enablingClause"),
     }
     return teams, configuration
+
+
+def collect_known_players(client):
+    """Reúne los jugadores de las plantillas de TODOS los rivales de tu
+    liga más el mercado actual (tu propia plantilla la añade quien llame a
+    esto, ya la tiene local). En pretemporada, sin partidos jugados
+    todavía, esto es la mejor base para comparar precios entre jugadores de
+    la misma posición (ver scoring.price_percentile_base).
+
+    Implica varias llamadas (una por rival + mercado), así que se cachea
+    unas horas — el mercado y las plantillas rivales no cambian cada
+    minuto."""
+    def _fetch():
+        players = []
+        try:
+            raw_teams = client.get_league_teams()
+            teams, _ = normalize_league_teams(raw_teams)
+        except FutmondoError:
+            teams = []
+        for t in teams:
+            if t.get("id") == client.team_id:
+                continue  # la tuya ya la tiene quien llama a esto
+            try:
+                raw_roster = client.get_roster(team_id=t["id"])
+                players.extend(normalize_roster(raw_roster))
+            except FutmondoError:
+                continue
+        try:
+            raw_market = client.get_market()
+            players.extend(normalize_roster(raw_market))
+        except FutmondoError:
+            pass
+        return players
+
+    key = f"known_players:{client.championship_id}"
+    return cache.get_or_set(key, _fetch, ttl=cache.DEFAULT_TTL)

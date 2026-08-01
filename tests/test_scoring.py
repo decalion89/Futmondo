@@ -380,3 +380,30 @@ def test_real_budget_max_bid_none_without_data():
     assert scoring.real_budget_max_bid(None, 100, 0.25) is None
     assert scoring.real_budget_max_bid(350, None, 0.25) is None
     assert scoring.real_budget_max_bid(350, 100, None) is None
+
+
+def test_build_position_price_index_groups_by_position():
+    players = [
+        {"position": "DEL", "price": 10_000_000},
+        {"position": "DEL", "price": 5_000_000},
+        {"position": "DEF", "price": 2_000_000},
+        {"position": "DEL", "price": None},  # sin precio, se ignora
+    ]
+    index = scoring.build_position_price_index(players)
+    assert sorted(index["DEL"]) == [5_000_000, 10_000_000]
+    assert index["DEF"] == [2_000_000]
+
+
+def test_price_percentile_base_ranks_cheap_and_expensive_players():
+    position_prices = {"DEL": [1_000_000, 5_000_000, 10_000_000, 20_000_000]}
+    cheapest = scoring.price_percentile_base(1_000_000, "DEL", position_prices)
+    priciest = scoring.price_percentile_base(20_000_000, "DEL", position_prices)
+    assert cheapest < priciest
+    assert scoring.PRESEASON_BASE_MIN <= cheapest <= scoring.PRESEASON_BASE_MAX
+    assert scoring.PRESEASON_BASE_MIN <= priciest <= scoring.PRESEASON_BASE_MAX
+    assert priciest == scoring.PRESEASON_BASE_MAX  # el más caro de todos -> percentil 100%
+
+
+def test_price_percentile_base_none_without_data():
+    assert scoring.price_percentile_base(1_000_000, "DEL", {}) is None
+    assert scoring.price_percentile_base(None, "DEL", {"DEL": [1, 2, 3]}) is None
