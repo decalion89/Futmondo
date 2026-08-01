@@ -409,6 +409,13 @@ def test_price_percentile_base_none_without_data():
     assert scoring.price_percentile_base(None, "DEL", {"DEL": [1, 2, 3]}) is None
 
 
+def test_is_low_confidence_fringe_flags_floor_price_without_real_data():
+    assert scoring.is_low_confidence_fringe(1_000_000, has_real_data=False) is True
+    assert scoring.is_low_confidence_fringe(1_000_000, has_real_data=True) is False  # sí ha jugado, precio bajo no importa
+    assert scoring.is_low_confidence_fringe(6_500_000, has_real_data=False) is False  # no está en el precio mínimo
+    assert scoring.is_low_confidence_fringe(None, has_real_data=False) is False
+
+
 def test_implied_games_played_derives_from_points_and_average():
     assert scoring.implied_games_played(30, 6.0) == 5
     assert scoring.implied_games_played(6.5, 6.5) == 1

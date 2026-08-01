@@ -245,6 +245,23 @@ def price_percentile_base(price, position, position_prices):
     return round(PRESEASON_BASE_MIN + percentile * (PRESEASON_BASE_MAX - PRESEASON_BASE_MIN), 2)
 
 
+FUTMONDO_FLOOR_PRICE = 1_000_000  # precio mínimo de la plataforma: decenas de jugadores de relleno lo comparten
+
+
+def is_low_confidence_fringe(price, has_real_data):
+    """Un jugador al precio MÍNIMO de la plataforma (1M€, el mismo que
+    comparten decenas de suplentes/canteranos de todos los equipos) y sin
+    ni un partido real jugado no es "barato y con potencial" — es "sin
+    apenas señal de que vaya a jugar". El problema no es solo de confianza:
+    dividir cualquier puntuación entre un precio así de bajo dispara
+    matemáticamente su pts/M€ por encima de jugadores reales bien
+    valorados, aunque el motor no tenga ningún indicio de que vaya a pisar
+    el campo. Se usa para NO dejar que estos casos ganen el ranking por
+    pura aritmética del precio."""
+    parsed = parse_price(price)
+    return bool(parsed and parsed <= FUTMONDO_FLOOR_PRICE and not has_real_data)
+
+
 def build_position_price_index(players):
     """A partir de una lista de jugadores ({position, price}), agrupa los
     precios por posición — la "materia prima" para price_percentile_base."""

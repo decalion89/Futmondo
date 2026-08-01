@@ -116,6 +116,11 @@ def build_reason(r):
     """Frase corta explicando POR QUÉ destaca (o no) este candidato, a partir
     de las señales que ya calculamos para él — para que la recomendación no
     sea una caja negra y puedas decidir tú con el motivo delante."""
+    if r.get("low_confidence_fringe"):
+        return (
+            "❓ Precio mínimo de la plataforma y cero partidos reales todavía — "
+            "sin apenas señal de que vaya a tener minutos, el pts/M€ que ves no es de fiar aquí"
+        )
     parts = []
     value = r.get("value")
     if value is not None:
@@ -195,6 +200,11 @@ def rank_market(market_listings, benchmark_value=scoring.DEFAULT_VALUE_BENCHMARK
             futmondo_form = scoring.shrink_form_estimate(raw_form, games_played, preseason_base)
         score_low_sample = raw_form is not None and games_played is not None \
             and games_played < scoring.LOW_SAMPLE_GAMES_THRESHOLD
+        # Precio mínimo de la plataforma + cero datos reales = sin apenas
+        # señal de que vaya a jugar. Sin esto, dividir cualquier puntuación
+        # entre un precio así de bajo dispara su pts/M€ por delante de
+        # jugadores reales bien valorados, solo por aritmética del precio.
+        low_confidence_fringe = scoring.is_low_confidence_fringe(listing.get("price"), has_real_data=raw_form is not None)
         futmondo_match = next_match_index.get(listing.get("futmondo_team_id")) \
             or next_match_index.get(listing.get("team"))
         futmondo_win_prob = futmondo_match.get("win_prob") if futmondo_match else None
@@ -253,10 +263,18 @@ def rank_market(market_listings, benchmark_value=scoring.DEFAULT_VALUE_BENCHMARK
             "score_from_price": score_from_price,
             "score_low_sample": score_low_sample,
             "implied_games_played": games_played,
+            "low_confidence_fringe": low_confidence_fringe,
             "price_trend": scoring.price_trend(listing.get("price"), listing.get("futmondo_price_change")),
         })
 
-    ranked.sort(key=lambda r: (r["team_limit_reached"], r["value"] is None, -(r["value"] or 0)))
+    # low_confidence_fringe va SIEMPRE detrás de cualquier candidato con
+    # señal real (precio de verdad o partidos jugados), pase lo que pase con
+    # su "valor" calculado — si no, el propio ratio pts/M€ los pone primero
+    # por pura aritmética de dividir entre un precio mínimo, no porque el
+    # motor tenga ningún indicio de que vayan a jugar.
+    ranked.sort(key=lambda r: (
+        r["team_limit_reached"], r["low_confidence_fringe"], r["value"] is None, -(r["value"] or 0),
+    ))
     for r in ranked:
         r["reason"] = build_reason(r)
     return ranked, errors

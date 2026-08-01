@@ -23,6 +23,16 @@ def test_build_reason_falls_back_to_plain_trend_without_momentum():
     assert "subiendo" in reason.lower()
 
 
+def test_build_reason_warns_before_anything_else_for_low_confidence_fringe():
+    # Un jugador a precio mínimo sin datos reales no debe presumir de su
+    # pts/M€ (inflado por dividir entre un precio casi nulo) como si fuera
+    # una ganga real.
+    r = {"value": 99.0, "score_from_price": True, "low_confidence_fringe": True}
+    reason = transfers.build_reason(r)
+    assert "sin apenas señal" in reason.lower() or "no es de fiar" in reason.lower()
+    assert "99.0 pts/m€" not in reason.lower()
+
+
 class _FakeClient:
     team_id = "me"
 

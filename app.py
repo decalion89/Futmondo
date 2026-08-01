@@ -97,7 +97,10 @@ def dashboard():
     # jugadores del mismo equipo) y a quién te conviene vender, con el
     # motivo de cada uno — para no tener que ir a Fichajes a buscarlo.
     market_result = transfers_service.full_market_ranking(futmondo_client, players, status_cache)
-    top_buys = [r for r in market_result["ranked"] if not r.get("team_limit_reached")][:3]
+    top_buys = [
+        r for r in market_result["ranked"]
+        if not r.get("team_limit_reached") and not r.get("low_confidence_fringe")
+    ][:3]
     for r in top_buys:
         r["status"] = r.get("futmondo_status") or "ok"
     _, top_sells = transfers_service.sell_candidates(players, status_cache, top=2)
