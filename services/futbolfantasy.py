@@ -92,10 +92,14 @@ def _resolve_team_slug(team_name):
     return None
 
 
+REQUEST_TIMEOUT = 8  # una plantilla puede tocar 10-15 equipos distintos en un solo sync —
+# corto a propósito para que uno lento no se coma todo el tiempo del worker
+
+
 def _fetch_team_page(team_slug):
     url = f"{BASE_URL}/{team_slug}"
     try:
-        resp = requests.get(url, headers=REQUEST_HEADERS, timeout=20)
+        resp = requests.get(url, headers=REQUEST_HEADERS, timeout=REQUEST_TIMEOUT)
         resp.raise_for_status()
     except requests.exceptions.RequestException as e:
         raise FutbolFantasyError(f"No se pudo consultar futbolfantasy.com: {e}")
