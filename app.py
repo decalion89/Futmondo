@@ -401,28 +401,5 @@ def sync():
     return redirect(url_for("dashboard"))
 
 
-@app.route("/debug/probe-endpoints/<player_id>")
-def debug_probe_endpoints(player_id):
-    """TEMPORAL: prueba varios nombres de endpoint plausibles para las
-    estadísticas detalladas/histórico de temporadas de un jugador que no
-    están en el proyecto open-source del que partimos. Se retira tras
-    esta investigación."""
-    client = FutmondoClient()
-    candidates = [
-        "/1/player/stats", "/1/player/statistics", "/1/player/history",
-        "/1/player/seasons", "/1/player/matches", "/1/player/detail",
-        "/2/player/summary", "/1/player/profile", "/1/stats/player",
-        "/1/player/careerStats", "/1/player/career",
-    ]
-    results = {}
-    for path in candidates:
-        try:
-            raw = client._post(path, {"playerId": player_id})
-            results[path] = {"ok": True, "keys": list(raw.keys()) if isinstance(raw, dict) else str(type(raw))}
-        except FutmondoError as e:
-            results[path] = {"ok": False, "error": str(e)}
-    return results
-
-
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
