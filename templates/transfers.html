@@ -224,7 +224,7 @@
     {% endif %}
 
     <div class="section-title" style="margin-top:1.5rem;"><h2>Vender: prioridad por riesgo</h2></div>
-    <p class="hint">Primero los que ahora mismo no suman (lesión/sanción/duda) — no tiene sentido pagarles clausula/mantenerlos si tienes mejor opción. Luego, de entre tus jugadores disponibles, los de peor relación puntos/precio.</p>
+    <p class="hint">Primero los que ahora mismo no suman (lesión/sanción/duda). Luego los sanos que probablemente ya no son titulares (la alineación de la jornada 1 no tiene por qué repetirse en la jornada 2). Por último, de entre tus jugadores disponibles, los de peor relación puntos/precio.</p>
 
     {% if unavailable %}
       <h3>No disponibles ahora mismo</h3>
@@ -237,6 +237,23 @@
             <td data-label="Pos.">{{ p.position }}</td>
             <td data-label="Estado">{{ p.status }}</td>
             <td data-label="Motivo">{{ p.reason or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+
+    {% if benched_risk %}
+      <h3>Sanos pero probablemente ya no titulares</h3>
+      <table>
+        <thead><tr><th>Jugador</th><th>Pos.</th><th>Titular</th><th>Por qué</th></tr></thead>
+        <tbody>
+          {% for p in benched_risk %}
+          <tr class="status-duda">
+            <td data-label="Jugador">{{ p.name }}</td>
+            <td data-label="Pos.">{{ p.position }}</td>
+            <td data-label="Titular">{{ p.titular_probability }}%</td>
+            <td data-label="Por qué" style="white-space:normal; min-width:14rem;">{{ p.reason or '—' }}</td>
           </tr>
           {% endfor %}
         </tbody>

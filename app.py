@@ -105,7 +105,8 @@ def dashboard():
     ][:3]
     for r in top_buys:
         r["status"] = r.get("futmondo_status") or "ok"
-    _, top_sells = transfers_service.sell_candidates(players, status_cache, top=2)
+    _, benched_risk, worst_value_top = transfers_service.sell_candidates(players, status_cache, top=2)
+    top_sells = (benched_risk + worst_value_top)[:2]
 
     # Alerta temprana: discrepancias entre el estado oficial de Futmondo y
     # la señal independiente de futbolfantasy.com — te enteras antes de que
@@ -192,7 +193,7 @@ def transfers():
 
     squad = store.load_squad()
     status_cache = store.load_status_cache()
-    unavailable, worst_value = transfers_service.sell_candidates(squad, status_cache)
+    unavailable, benched_risk, worst_value = transfers_service.sell_candidates(squad, status_cache)
 
     result = transfers_service.full_market_ranking(futmondo_client, squad, status_cache)
     ranked = result["ranked"]
@@ -235,7 +236,7 @@ def transfers():
         if not r.get("team_limit_reached") and not r.get("low_confidence_fringe")
     ][:5]
     top_clausulazo = rival_targets[:5]
-    top_vender = unavailable + worst_value[:3]
+    top_vender = unavailable + benched_risk + worst_value[:3]
 
     # El plan de HOY: qué te cabe de verdad con tu dinero disponible ahora
     # mismo, y si vender a alguien te permite llegar a un objetivo mejor.
@@ -250,6 +251,7 @@ def transfers():
         ranked=ranked,
         rival_targets=rival_targets,
         unavailable=unavailable,
+        benched_risk=benched_risk,
         worst_value=worst_value,
         top_fichar=top_fichar,
         top_clausulazo=top_clausulazo,

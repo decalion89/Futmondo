@@ -328,10 +328,19 @@ def rank_market(market_listings, benchmark_value=scoring.DEFAULT_VALUE_BENCHMARK
 
 
 def sell_candidates(squad, status_cache, top=5):
-    """Jugadores de tu plantilla peor posicionados para seguir aportando:
-    primero los no disponibles (lesión/sanción), luego los de peor relación
-    puntos/precio entre los disponibles."""
-    unavailable, ranked_ok = [], []
+    """Jugadores de tu plantilla peor posicionados para seguir aportando,
+    en tres grupos con motivos distintos (la jornada 1 no tiene por qué
+    parecerse a la jornada 2 — un jugador sano puede dejar de ser titular
+    sin lesionarse, solo por rotación o porque ha llegado un fichaje):
+
+    1. No disponibles: lesión/sanción/duda según Futmondo.
+    2. Sanos pero probablemente ya no titulares: Futmondo los da por
+       disponibles, pero el once probable real de futbolfantasy.com les da
+       muy poca probabilidad de salir — la señal de "puede estar sano pero
+       no jugar" que la disponibilidad por sí sola no capta.
+    3. Peor relación puntos/precio entre los que sí juegan: no es que no
+       vayan a jugar, es que ese dinero rendiría más en otro sitio."""
+    unavailable, benched_risk, ranked_ok = [], [], []
     for p in squad:
         info = status_cache.get(p["id"], {})
         status = info.get("status")
@@ -343,13 +352,24 @@ def sell_candidates(squad, status_cache, top=5):
                 "duda": "Duda para el próximo partido",
             }.get(status, "No disponible ahora mismo")
             unavailable.append(row)
-        elif status == "ok" and info.get("value") is not None:
-            ranked_ok.append({**p, **info})
+        elif status == "ok":
+            titular_probability = info.get("titular_probability")
+            if titular_probability is not None and titular_probability < scoring.LOW_TITULAR_PROBABILITY_THRESHOLD:
+                row = {**p, **info}
+                row["reason"] = (
+                    f"Sano y disponible según Futmondo, pero solo {titular_probability}% de probabilidad real "
+                    "de ser titular la próxima jornada (once probable de futbolfantasy.com) — puede que haya "
+                    "perdido el puesto sin estar lesionado"
+                )
+                benched_risk.append(row)
+            if info.get("value") is not None:
+                ranked_ok.append({**p, **info})
 
+    benched_risk.sort(key=lambda r: r.get("titular_probability") or 0)
     ranked_ok.sort(key=lambda r: r["value"])
     for r in ranked_ok[:top]:
         r["reason"] = f"Peor relación puntos/precio de tu plantilla ({r['value']} pts/M€) — ese dinero rendiría más en otro sitio"
-    return unavailable, ranked_ok[:top]
+    return unavailable, benched_risk[:top], ranked_ok[:top]
 
 
 def full_market_ranking(client, squad, status_cache):

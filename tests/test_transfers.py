@@ -265,6 +265,59 @@ def _candidate(name, price, value, kind_field=None):
     return d
 
 
+def _squad_player(player_id, name="X", position="DEL"):
+    return {"id": player_id, "name": name, "position": position, "price": 5_000_000}
+
+
+def test_sell_candidates_flags_unavailable_players():
+    squad = [_squad_player("p1")]
+    status_cache = {"p1": {"status": "lesionado", "value": 3.0}}
+    unavailable, benched_risk, worst_value = transfers.sell_candidates(squad, status_cache)
+    assert len(unavailable) == 1
+    assert unavailable[0]["reason"] == "Lesionado según Futmondo, no puntúa mientras dure"
+    assert benched_risk == []
+    assert worst_value == []
+
+
+def test_sell_candidates_flags_healthy_but_probably_benched():
+    # Sano según Futmondo (status "ok"), pero el once probable real le da
+    # muy poca probabilidad de jugar -> señal de venta distinta a lesión.
+    squad = [_squad_player("p1", name="BancoProbable")]
+    status_cache = {"p1": {"status": "ok", "value": 2.0, "titular_probability": 10}}
+    unavailable, benched_risk, worst_value = transfers.sell_candidates(squad, status_cache)
+    assert unavailable == []
+    assert len(benched_risk) == 1
+    assert benched_risk[0]["name"] == "BancoProbable"
+    assert "10%" in benched_risk[0]["reason"]
+    assert "sin estar lesionado" in benched_risk[0]["reason"]
+
+
+def test_sell_candidates_does_not_flag_healthy_starters_as_benched():
+    squad = [_squad_player("p1", name="TitularClaro")]
+    status_cache = {"p1": {"status": "ok", "value": 5.0, "titular_probability": 90}}
+    _, benched_risk, _ = transfers.sell_candidates(squad, status_cache)
+    assert benched_risk == []
+
+
+def test_sell_candidates_no_false_positive_without_titular_data():
+    # Sin dato real de titularidad, no se puede afirmar que esté en el
+    # banco -> no debe aparecer como riesgo de banquillo sin pruebas.
+    squad = [_squad_player("p1")]
+    status_cache = {"p1": {"status": "ok", "value": 3.0}}
+    _, benched_risk, _ = transfers.sell_candidates(squad, status_cache)
+    assert benched_risk == []
+
+
+def test_sell_candidates_worst_value_still_sorted_ascending():
+    squad = [_squad_player("p1", name="Peor"), _squad_player("p2", name="Mejor")]
+    status_cache = {
+        "p1": {"status": "ok", "value": 0.2},
+        "p2": {"status": "ok", "value": 3.0},
+    }
+    _, _, worst_value = transfers.sell_candidates(squad, status_cache, top=5)
+    assert [p["name"] for p in worst_value] == ["Peor", "Mejor"]
+
+
 def test_build_transfer_plan_buys_what_fits_within_funds():
     fichar = [_candidate("Barato", 5_000_000, 4.0)]
     plan = transfers.build_transfer_plan(fichar, [], [], available_funds=10_000_000)
