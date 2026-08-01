@@ -202,10 +202,14 @@ def normalize_roster(raw):
             "futmondo_price_change": p.get("change"),
             "futmondo_buy_price": p.get("buyPrice"),
             # Precio EXACTO de clausulazo, tal cual lo calcula Futmondo —
-            # confirmado en el roster de un jugador de OTRO manager (no
-            # aparece en el tuyo propio, no tiene sentido pagarte una
-            # cláusula a ti mismo). Sustituye a cualquier estimación por
-            # porcentaje: esto es el número real, no un cálculo nuestro.
+            # sustituye a cualquier estimación por porcentaje cuando está
+            # disponible. Confirmado el 2026-08-02 que el campo `clause` NO
+            # aparece para jugadores del reparto inicial de pretemporada
+            # que su dueño nunca ha comprado activamente (`owner.buy == 0`)
+            # — probablemente solo se calcula tras actividad real de
+            # mercado. Se espera que empiece a poblarse solo, sin tocar
+            # este código, en cuanto haya transacciones reales o arranque
+            # la temporada.
             "futmondo_clause_price": (p.get("clause") or {}).get("price"),
             # Forma partido a partido (más reciente al final) que ya
             # calcula la propia Futmondo — en cuanto haya jornadas jugadas,
