@@ -86,14 +86,14 @@ def main():
         print(f"\nNo se detectó nada en {WAIT_TIMEOUT_SECONDS}s. ¿Llegaste a abrir 'Mi equipo'? Vuelve a intentarlo.")
         sys.exit(1)
 
-    lines = ENV_PATH.read_text().splitlines() if ENV_PATH.exists() else []
+    lines = ENV_PATH.read_text(encoding="utf-8").splitlines() if ENV_PATH.exists() else []
     _set_var(lines, "FUTMONDO_TOKEN", captured["token"])
     _set_var(lines, "FUTMONDO_USER_ID", captured["userid"])
     if captured.get("championshipId"):
         _set_var(lines, "FUTMONDO_CHAMPIONSHIP_ID", captured["championshipId"])
     if captured.get("userteamId"):
         _set_var(lines, "FUTMONDO_TEAM_ID", captured["userteamId"])
-    ENV_PATH.write_text("\n".join(lines) + "\n")
+    ENV_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     print(f"\n¡Listo! Guardado en {ENV_PATH}")
     print("Ya puedes arrancar la app (python app.py) e importar tu plantilla.")

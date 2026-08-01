@@ -164,7 +164,7 @@ def import_futmondo():
         return redirect(url_for("dashboard"))
 
     raw_path = os.path.join(store.DATA_DIR, "futmondo_raw_roster.json")
-    with open(raw_path, "w") as f:
+    with open(raw_path, "w", encoding="utf-8") as f:
         json.dump(raw, f, indent=2, ensure_ascii=False)
 
     normalized = normalize_roster(raw)

@@ -13,18 +13,18 @@ POSITIONS = ["POR", "DEF", "CEN", "DEL"]
 def _ensure_file(path, default):
     os.makedirs(DATA_DIR, exist_ok=True)
     if not os.path.exists(path):
-        with open(path, "w") as f:
+        with open(path, "w", encoding="utf-8") as f:
             json.dump(default, f, indent=2, ensure_ascii=False)
 
 
 def load_squad():
     _ensure_file(SQUAD_FILE, [])
-    with open(SQUAD_FILE) as f:
+    with open(SQUAD_FILE, encoding="utf-8") as f:
         return json.load(f)
 
 
 def save_squad(players):
-    with open(SQUAD_FILE, "w") as f:
+    with open(SQUAD_FILE, "w", encoding="utf-8") as f:
         json.dump(players, f, indent=2, ensure_ascii=False)
 
 
@@ -58,6 +58,7 @@ def import_roster(normalized_players):
             "team": p["team"],
             "price": p.get("price"),
             "futmondo_player_id": p.get("futmondo_player_id"),
+            "futmondo_status": p.get("futmondo_status"),
             "photo_url": p.get("photo_url") or prev.get("photo_url"),
             "api_football_id": prev.get("api_football_id"),
             "api_football_team_id": prev.get("api_football_team_id"),
@@ -81,10 +82,10 @@ def update_player(player_id, **fields):
 
 def load_status_cache():
     _ensure_file(STATUS_CACHE_FILE, {})
-    with open(STATUS_CACHE_FILE) as f:
+    with open(STATUS_CACHE_FILE, encoding="utf-8") as f:
         return json.load(f)
 
 
 def save_status_cache(cache):
-    with open(STATUS_CACHE_FILE, "w") as f:
+    with open(STATUS_CACHE_FILE, "w", encoding="utf-8") as f:
         json.dump(cache, f, indent=2, ensure_ascii=False)

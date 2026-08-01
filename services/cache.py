@@ -20,7 +20,7 @@ def _load():
     if not os.path.exists(CACHE_FILE):
         return {}
     try:
-        with open(CACHE_FILE) as f:
+        with open(CACHE_FILE, encoding="utf-8") as f:
             return json.load(f)
     except (json.JSONDecodeError, OSError):
         return {}
@@ -28,7 +28,7 @@ def _load():
 
 def _save(data):
     os.makedirs(os.path.dirname(CACHE_FILE), exist_ok=True)
-    with open(CACHE_FILE, "w") as f:
+    with open(CACHE_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f)
 
 

@@ -77,15 +77,50 @@ class FutmondoClient:
         return self._post("/2/championship/teams")
 
 
-def normalize_roster(raw):
-    """Intenta convertir la respuesta cruda de /1/userteam/roster a una lista
-    simple de {name, position, team, price, futmondo_player_id}.
+# Confirmado con datos reales (2026-08-01): el campo de posición es `role`,
+# en español y en minúsculas.
+POSITION_MAP = {
+    "portero": "POR",
+    "defensa": "DEF",
+    "centrocampista": "CEN",
+    "delantero": "DEL",
+}
 
-    La forma exacta del JSON de Futmondo no está documentada públicamente,
-    así que esto es un mapeo best-effort con varios nombres de campo
-    probables. Si tu plantilla no aparece bien tras importar, revisa
-    data/futmondo_raw_roster.json (se guarda en cada importación) para ver
-    la forma real y ajustar este mapeo.
+
+def _map_position(role):
+    if not role:
+        return None
+    return POSITION_MAP.get(str(role).strip().lower())
+
+
+def _map_status(status):
+    """Traduce el campo `status` real de Futmondo (visto: "injured2" para un
+    lesionado) a nuestros códigos internos. No hemos visto todavía un
+    ejemplo de sancionado, así que cualquier valor no reconocido pero no
+    vacío se trata como "duda" para no perder la señal."""
+    if not status:
+        return None
+    s = str(status).lower()
+    if "injur" in s or "lesion" in s:
+        return "lesionado"
+    if "suspend" in s or "sancion" in s:
+        return "sancionado"
+    return "duda"
+
+
+def normalize_roster(raw):
+    """Convierte la respuesta cruda de /1/userteam/roster (o del mercado) a
+    una lista simple de {name, position, team, price, futmondo_player_id,
+    futmondo_status}.
+
+    Campos confirmados con datos reales el 2026-08-01: `role` (posición en
+    español), `team` (nombre del equipo como texto plano, no un objeto),
+    `value` (precio), `status` (lesión/sanción). El campo `photo` trae solo
+    un nombre de archivo (ej. "67011217.png"), no una URL completa — no
+    sabemos todavía el dominio del CDN de imágenes de Futmondo, así que de
+    momento no lo usamos como foto (la app ya usa la de API-Football como
+    respaldo). Se mantienen alternativas por si el mercado usa nombres
+    ligeramente distintos.
     """
     candidates = raw.get("players") if isinstance(raw, dict) else None
     if candidates is None and isinstance(raw, dict):
@@ -102,13 +137,21 @@ def normalize_roster(raw):
         if not isinstance(p, dict):
             continue
         team = p.get("team")
-        team_name = team.get("name") if isinstance(team, dict) else (p.get("teamName") or p.get("club"))
+        team_name = team.get("name") if isinstance(team, dict) else (team or p.get("teamName") or p.get("club"))
+        position = (
+            _map_position(p.get("role"))
+            or p.get("position")
+            or p.get("positionName")
+            or p.get("posId")
+            or "?"
+        )
         normalized.append({
             "name": p.get("nickname") or p.get("name") or p.get("playerName") or "Desconocido",
-            "position": p.get("position") or p.get("positionName") or p.get("posId") or "?",
+            "position": position,
             "team": team_name or "?",
             "price": p.get("value") or p.get("clausule") or p.get("marketValue") or p.get("price"),
             "futmondo_player_id": p.get("id") or p.get("playerId"),
-            "photo_url": p.get("photo") or p.get("photoUrl") or p.get("image") or p.get("urlPhoto") or p.get("avatar"),
+            "photo_url": p.get("photoUrl") or p.get("image") or p.get("urlPhoto") or p.get("avatar"),
+            "futmondo_status": _map_status(p.get("status")),
         })
     return normalized

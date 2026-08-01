@@ -81,6 +81,15 @@ def sync_all():
                         status = "lesionado"
                     break
 
+            # El propio Futmondo (más autorizado que nuestro cruce con
+            # API-Football) puede traer ya un estado de lesión/sanción al
+            # importar la plantilla — si existe, manda sobre lo de arriba.
+            futmondo_status = player.get("futmondo_status")
+            if futmondo_status:
+                status = futmondo_status
+                if not reason:
+                    reason = "Marcado por Futmondo"
+
             fixtures = client.get_next_fixtures(team_id, scoring.HORIZON)
             swing = scoring.fixture_swing(fixtures, team_id, standings)
             next_fixture = swing["fixtures"][0] if swing["fixtures"] else None
