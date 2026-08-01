@@ -449,6 +449,57 @@ def test_price_trend_none_without_data():
     assert scoring.price_trend(10_000_000, None) is None
 
 
+def _hist(prices):
+    return [{"date": f"2026-08-{i+1:02d}", "price": p} for i, p in enumerate(prices)]
+
+
+def test_price_momentum_flag_detects_sustained_rise():
+    # 3 días seguidos subiendo, +25% acumulado en la racha.
+    flag = scoring.price_momentum_flag(_hist([1_000_000, 1_050_000, 1_150_000, 1_250_000]))
+    assert flag is not None
+    assert flag["streak_days"] == 3
+    assert flag["cumulative_pct"] > scoring.BUBBLE_CUMULATIVE_THRESHOLD
+
+
+def test_price_momentum_flag_none_when_streak_too_short():
+    # Solo 2 días seguidos subiendo, por debajo del mínimo de 3.
+    flag = scoring.price_momentum_flag(_hist([1_000_000, 1_100_000, 1_250_000]))
+    assert flag is None
+
+
+def test_price_momentum_flag_none_when_rise_too_small():
+    # 4 días seguidos pero subida acumulada mínima (ruido, no racha real).
+    flag = scoring.price_momentum_flag(_hist([1_000_000, 1_001_000, 1_002_000, 1_003_000]))
+    assert flag is None
+
+
+def test_price_momentum_flag_none_without_enough_history():
+    assert scoring.price_momentum_flag(_hist([1_000_000, 1_100_000])) is None
+    assert scoring.price_momentum_flag([]) is None
+    assert scoring.price_momentum_flag(None) is None
+
+
+def test_price_momentum_flag_none_when_last_day_drops():
+    # La racha se mide desde el último día hacia atrás: si el último día ya
+    # bajó, no hay racha activa ahora mismo aunque la hubiera antes.
+    flag = scoring.price_momentum_flag(_hist([1_000_000, 1_100_000, 1_250_000, 1_200_000]))
+    assert flag is None
+
+
+def test_score_consistency_none_with_too_little_history():
+    assert scoring.score_consistency([{"date": "d1", "score": 6.0}, {"date": "d2", "score": 7.0}]) is None
+    assert scoring.score_consistency([]) is None
+    assert scoring.score_consistency(None) is None
+
+
+def test_score_consistency_low_for_steady_scores():
+    steady = [{"date": f"d{i}", "score": s} for i, s in enumerate([6.0, 6.2, 5.9, 6.1])]
+    boom_bust = [{"date": f"d{i}", "score": s} for i, s in enumerate([1.0, 10.0, 1.5, 9.5])]
+    steady_stdev = scoring.score_consistency(steady)
+    boom_bust_stdev = scoring.score_consistency(boom_bust)
+    assert steady_stdev < boom_bust_stdev
+
+
 def test_purchase_profit_computes_gain_and_loss():
     assert scoring.purchase_profit(current_value=12_000_000, buy_price=10_000_000) == 2_000_000
     assert scoring.purchase_profit(current_value=8_000_000, buy_price=10_000_000) == -2_000_000

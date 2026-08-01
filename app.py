@@ -120,6 +120,8 @@ def dashboard():
         lineup=lineup,
         top_buys=top_buys,
         top_sells=top_sells,
+        my_rank=market_result["my_rank"],
+        total_teams=market_result["total_teams"],
     )
 
 
@@ -137,8 +139,8 @@ def market():
                 if player_id:
                     try:
                         history = get_price_history(client, player_id)
-                        prices = [h["price"] for h in history.get("history", [])]
-                        p["sparkline"] = viz.sparkline_svg(prices)
+                        p["sparkline"] = viz.sparkline_svg([h["price"] for h in history.get("history", [])])
+                        p["price_momentum"] = scoring.price_momentum_flag(history.get("history", []))
                     except FutmondoError:
                         p["sparkline"] = None
         except FutmondoError as e:
@@ -174,8 +176,9 @@ def transfers():
                 continue
             try:
                 history = get_price_history(futmondo_client, player_id)
-                prices = [h["price"] for h in history.get("history", [])]
-                r["sparkline"] = viz.sparkline_svg(prices)
+                r["sparkline"] = viz.sparkline_svg([h["price"] for h in history.get("history", [])])
+                r["price_momentum"] = scoring.price_momentum_flag(history.get("history", []))
+                r["reason"] = transfers_service.build_reason(r)
             except FutmondoError:
                 r["sparkline"] = None
 
@@ -204,6 +207,14 @@ def league():
             teams, configuration = normalize_league_teams(raw)
             for t in teams:
                 t["is_me"] = t.get("id") == client.team_id
+            # Clasificación real por puntos (no por valor de equipo, que es
+            # el orden por defecto de `teams`) — la necesitamos para saber
+            # si te conviene jugar a "suelo" (vas líder) o a "techo" (vas
+            # remontando). En pretemporada todos están a 0 puntos, así que
+            # esto no dice nada todavía hasta que arranque la liga.
+            points_ranking = sorted(teams, key=lambda t: t.get("points") or 0, reverse=True)
+            for idx, t in enumerate(points_ranking, start=1):
+                t["points_rank"] = idx
         except FutmondoError as e:
             error = str(e)
         try:
@@ -211,11 +222,18 @@ def league():
             activity = normalize_pressroom(raw_pressroom)
         except FutmondoError as e:
             error = error or str(e)
+    weaknesses = []
+    if client.enabled:
+        try:
+            weaknesses = transfers_service.scan_rival_weaknesses(client)
+        except FutmondoError as e:
+            error = error or str(e)
     return render_template(
         "league.html",
         teams=teams,
         configuration=configuration,
         activity=activity,
+        weaknesses=weaknesses,
         error=error,
         futmondo_enabled=client.enabled,
     )

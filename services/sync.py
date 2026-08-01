@@ -58,6 +58,8 @@ def sync_all():
 
     players = store.load_squad()
     cache = store.load_status_cache()
+    score_history = store.load_score_history()
+    today = datetime.date.today().isoformat()
     errors = []
 
     standings = {}
@@ -186,6 +188,7 @@ def sync_all():
 
             score = None
             value = None
+            consistency = None
             if status == "ok":
                 score = scoring.player_score(
                     player["position"], rating, starter_rate, swing, congestion.get("count"),
@@ -193,6 +196,12 @@ def sync_all():
                     futmondo_form=futmondo_form, futmondo_win_prob=futmondo_win_prob,
                 )
                 value = scoring.value_for_money(score, player.get("price"))
+                # Vamos guardando un punto de puntuación por día — todavía no
+                # hay jornadas jugadas para calcular una varianza real (eso
+                # exige varias semanas de histórico), pero así empezamos a
+                # acumular el dato desde ya en vez de improvisarlo más tarde.
+                player_history = store.add_score_entry(score_history, player["id"], today, score)
+                consistency = scoring.score_consistency(player_history)
 
             cache[player["id"]] = {
                 "status": status,
@@ -216,10 +225,12 @@ def sync_all():
                 "low_motivation": motivation < 1.0,
                 "score": score,
                 "value": value,
+                "score_consistency": consistency,
                 "updated_at": datetime.datetime.utcnow().isoformat(),
             }
         except Exception as e:  # un fallo puntual no debe tumbar el resto
             errors.append(f"{player['name']}: error inesperado ({e})")
 
     store.save_status_cache(cache)
+    store.save_score_history(score_history)
     return cache, errors

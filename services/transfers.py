@@ -8,9 +8,20 @@ clave configurada, se usa como capa extra (fatiga, riesgo de sanción,
 motivación), pero no es obligatoria.
 """
 import os
-from services import scoring
+from services import scoring, cache
 from services.api_football import ApiFootballClient, ApiFootballError
 from services.futmondo import FutmondoError, normalize_roster, normalize_league_teams, next_match_by_team, collect_known_players
+
+# Mínimo de jugadores disponibles en cada posición para poder completar
+# CUALQUIERA de las formaciones habituales (services.scoring.FORMATIONS) —
+# por debajo de esto, un rival ya no puede alinear un once legal en esa
+# posición, no es solo que esté "corto de opciones".
+MIN_PLAYERS_BY_POSITION = {
+    "POR": min(f[0] for f in scoring.FORMATIONS),
+    "DEF": min(f[1] for f in scoring.FORMATIONS),
+    "CEN": min(f[2] for f in scoring.FORMATIONS),
+    "DEL": min(f[3] for f in scoring.FORMATIONS),
+}
 
 DEFAULT_MAX_SAME_TEAM = 2  # normas de "Sparka grande y libre!!"; ajustable por si tu liga usa otro límite
 
@@ -123,7 +134,14 @@ def build_reason(r):
         elif win_prob is not None and win_prob <= 0.3:
             rival_txt += " (no es favorito, partido cuesta arriba)"
         parts.append(rival_txt)
-    if r.get("price_trend") == "up":
+    momentum = r.get("price_momentum")
+    if momentum:
+        pct = round(momentum["cumulative_pct"] * 100)
+        parts.append(
+            f"⚠️ precio subiendo {momentum['streak_days']} días seguidos (+{pct}% acumulado) — "
+            "vigila si es mejora real o solo hype de la comunidad antes de pagar de más"
+        )
+    elif r.get("price_trend") == "up":
         parts.append("precio subiendo, podría encarecerse si esperas")
     elif r.get("price_trend") == "down":
         parts.append("precio bajando, buen momento para entrar")
@@ -282,7 +300,7 @@ def full_market_ranking(client, squad, status_cache):
     if not client.enabled:
         return {
             "ranked": [], "errors": errors, "benchmark_value": scoring.DEFAULT_VALUE_BENCHMARK,
-            "real_budget_cap": None, "resale_lock_days": None,
+            "real_budget_cap": None, "resale_lock_days": None, "my_rank": None, "total_teams": None,
         }
 
     try:
@@ -307,6 +325,8 @@ def full_market_ranking(client, squad, status_cache):
 
     real_budget_cap = None
     resale_lock_days = None
+    my_rank = None
+    total_teams = None
     try:
         raw_teams = client.get_league_teams()
         teams, configuration = normalize_league_teams(raw_teams)
@@ -317,6 +337,16 @@ def full_market_ranking(client, squad, status_cache):
                 configuration.get("budget"), my_team.get("team_value"),
                 configuration.get("max_bid_over_funds_pct"),
             )
+        # Clasificación real por puntos (no por valor de equipo, que es el
+        # orden de `teams`) — para saber si conviene jugar a "suelo" (vas
+        # líder) o a "techo" (vas remontando). Antes de que arranque la
+        # liga todos están a 0 puntos y el orden sería puro azar de
+        # desempate, así que solo lo damos por válido si ya hay puntos
+        # reales en juego.
+        if teams and my_team and any((t.get("points") or 0) > 0 for t in teams):
+            points_ranking = sorted(teams, key=lambda t: t.get("points") or 0, reverse=True)
+            total_teams = len(points_ranking)
+            my_rank = points_ranking.index(my_team) + 1
     except FutmondoError as e:
         errors.append(f"No se pudo leer la configuración de tu liga: {e}")
 
@@ -330,4 +360,46 @@ def full_market_ranking(client, squad, status_cache):
     return {
         "ranked": ranked, "errors": errors, "benchmark_value": benchmark_value,
         "real_budget_cap": real_budget_cap, "resale_lock_days": resale_lock_days,
+        "my_rank": my_rank, "total_teams": total_teams,
     }
+
+
+def scan_rival_weaknesses(client):
+    """Escanea la plantilla de TODOS los rivales de tu liga (una llamada por
+    rival) y detecta huecos reales por posición: menos jugadores disponibles
+    de los que exige la formación habitual más exigente en esa posición, es
+    decir, un rival que directamente NO PUEDE alinear un once legal ahí
+    ahora mismo (no solo "va corto de opciones"). Sirve para decidir a quién
+    bloquear en el mercado (el "clausulazo táctico") o contra quién puedes
+    arriesgar más tu propia alineación.
+
+    Implica una llamada por cada rival de tu liga, así que se cachea con un
+    TTL corto (los estados de lesión/sanción no cambian cada minuto, pero sí
+    de un día para otro)."""
+    def _fetch():
+        raw_teams = client.get_league_teams()
+        teams, _ = normalize_league_teams(raw_teams)
+        weaknesses = []
+        for t in teams:
+            if t.get("id") == client.team_id:
+                continue
+            try:
+                roster = normalize_roster(client.get_roster(team_id=t["id"]))
+            except FutmondoError:
+                continue
+            counts = {pos: 0 for pos in MIN_PLAYERS_BY_POSITION}
+            for p in roster:
+                position = p.get("position")
+                status = p.get("futmondo_status") or "ok"
+                if position in counts and status == "ok":
+                    counts[position] += 1
+            gaps = [
+                {"position": pos, "available": counts[pos], "minimum": minimum}
+                for pos, minimum in MIN_PLAYERS_BY_POSITION.items()
+                if counts[pos] < minimum
+            ]
+            if gaps:
+                weaknesses.append({"team_id": t.get("id"), "team_name": t.get("name"), "gaps": gaps})
+        return weaknesses
+
+    return cache.get_or_set("rival_weaknesses", _fetch, ttl=3 * 3600)

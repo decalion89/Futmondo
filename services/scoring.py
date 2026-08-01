@@ -7,10 +7,26 @@ heurística transparente, no una predicción exacta — pondera datos objetivos
 por Champions/Europa League/Copa del Rey) que tú no puedes revisar partido
 a partido para 15+ jugadores.
 """
+import statistics
 from datetime import datetime, timedelta, timezone
 
 HORIZON = 5  # nº de próximos partidos que miramos para medir la racha de calendario
 FATIGUE_WINDOW_DAYS = 10  # ventana para medir congestión de calendario (todas las competiciones)
+
+MIN_HISTORY_FOR_CONSISTENCY = 4  # jornadas mínimas antes de fiarnos de una varianza calculada
+
+
+def score_consistency(history):
+    """Desviación estándar de la puntuación de un jugador a lo largo de las
+    últimas jornadas (histórico que vamos guardando en cada sync) — cuanto
+    más baja, más "suelo" (fiable, sin ceros); cuanto más alta, más "techo"
+    (puede darte un pleno o un cero). None si todavía no hay jornadas
+    suficientes para que el dato signifique algo — con 1-3 puntos no hay
+    varianza real que calcular, solo ruido."""
+    scores = [e["score"] for e in (history or []) if e.get("score") is not None]
+    if len(scores) < MIN_HISTORY_FOR_CONSISTENCY:
+        return None
+    return round(statistics.pstdev(scores), 2)
 
 
 def team_form_factor(standings_row):
@@ -429,6 +445,45 @@ def price_trend(price, price_change):
     if ratio <= -PRICE_TREND_THRESHOLD:
         return "down"
     return "flat"
+
+
+BUBBLE_MIN_STREAK_DAYS = 3  # días consecutivos de subida para considerarlo una racha, no ruido
+BUBBLE_CUMULATIVE_THRESHOLD = 0.08  # % de subida acumulada en la racha a partir del cual avisamos
+
+
+def price_momentum_flag(history):
+    """Detecta una subida de precio sostenida varios días seguidos (histórico
+    real día a día de Futmondo) — la "regla del 5% diario" que usan quienes
+    especulan en el mercado: una racha así puede ser un jugador que de verdad
+    está mejorando, o puede ser hype de la comunidad comprando por su cuenta
+    sin que haya cambiado nada en su rendimiento (eso no lo sabemos con solo
+    el histórico de precio, así que lo avisamos como racha a vigilar, no
+    como burbuja confirmada).
+
+    Devuelve None si no hay racha, o un dict {"streak_days", "cumulative_pct"}
+    con la racha de subidas consecutivas más reciente (termina en el último
+    día del histórico) si supera el mínimo de días y de subida acumulada."""
+    prices = [h["price"] for h in (history or []) if h.get("price")]
+    if len(prices) < BUBBLE_MIN_STREAK_DAYS + 1:
+        return None
+
+    streak_days = 0
+    i = len(prices) - 1
+    while i > 0 and prices[i] > prices[i - 1]:
+        streak_days += 1
+        i -= 1
+
+    if streak_days < BUBBLE_MIN_STREAK_DAYS:
+        return None
+
+    start_price = prices[len(prices) - 1 - streak_days]
+    end_price = prices[-1]
+    if not start_price:
+        return None
+    cumulative_pct = (end_price - start_price) / start_price
+    if cumulative_pct < BUBBLE_CUMULATIVE_THRESHOLD:
+        return None
+    return {"streak_days": streak_days, "cumulative_pct": round(cumulative_pct, 3)}
 
 
 def purchase_profit(current_value, buy_price):

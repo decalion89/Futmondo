@@ -5,3 +5,4 @@ __pycache__/
 data/status_cache.json
 data/api_cache.json
 data/futmondo_raw_roster.json
+data/score_history.json

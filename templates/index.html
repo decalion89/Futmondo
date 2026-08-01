@@ -74,6 +74,18 @@
     </div>
   {% endif %}
 
+  {% if my_rank %}
+    <div class="banner">
+      <span>{{ '🏆' if my_rank == 1 else '📊' }}</span>
+      <span>Vas {{ my_rank }}º de {{ total_teams }} en tu liga.
+      {% if my_rank == 1 %}Yendo líder, prioriza consistencia sobre ti mismo: en la duda entre dos jugadores similares, el más regular (defensas/mediocentros de despeje y recuperación) protege mejor tu posición que arriesgar con un perfil de todo o nada.
+      {% elif my_rank <= (total_teams / 3)|round(0, 'ceil')|int %}Vas bien situado — puedes seguir jugando con normalidad, sin necesidad de arriesgar de más.
+      {% else %}Si necesitas remontar, en la duda entre dos jugadores similares puede compensarte el de más techo (extremos desequilibrantes, delanteros que sacan partido a un partido favorable) aunque tenga algo más de riesgo de rotación — un "suelo" seguro no te acerca a quien vas persiguiendo.
+      {% endif %}
+      </span>
+    </div>
+  {% endif %}
+
   {% if top_buys or top_sells %}
   <div class="section-title"><h2>📋 Recomendaciones de hoy</h2></div>
   <p class="hint">Lo que diría el sistema si tuvieras que decidir ahora mismo, con el motivo de cada uno — la decisión y la ejecución (pujar, vender) siguen siendo tuyas, esto es la parte de "mirar todos los datos" hecha por ti.</p>

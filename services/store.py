@@ -6,6 +6,8 @@ import uuid
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 SQUAD_FILE = os.path.join(DATA_DIR, "squad.json")
 STATUS_CACHE_FILE = os.path.join(DATA_DIR, "status_cache.json")
+SCORE_HISTORY_FILE = os.path.join(DATA_DIR, "score_history.json")
+SCORE_HISTORY_MAX_ENTRIES = 60  # ~2 temporadas de jornadas de margen, para no crecer indefinidamente
 
 POSITIONS = ["POR", "DEF", "CEN", "DEL"]
 
@@ -96,3 +98,30 @@ def load_status_cache():
 def save_status_cache(cache):
     with open(STATUS_CACHE_FILE, "w", encoding="utf-8") as f:
         json.dump(cache, f, indent=2, ensure_ascii=False)
+
+
+def load_score_history():
+    _ensure_file(SCORE_HISTORY_FILE, {})
+    with open(SCORE_HISTORY_FILE, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def save_score_history(history):
+    with open(SCORE_HISTORY_FILE, "w", encoding="utf-8") as f:
+        json.dump(history, f, indent=2, ensure_ascii=False)
+
+
+def add_score_entry(history, player_id, date, score):
+    """Añade (mutando en memoria, sin tocar disco) un punto {date, score}
+    para un jugador — no hay forma honesta de estimar consistencia/varianza
+    real (para elegir alineación a "suelo" o "techo") sin ir acumulando su
+    puntuación jornada a jornada; esto empieza a construir ese histórico
+    desde ya. Si ya hay una entrada de la misma fecha (varios sync el mismo
+    día), la sustituye en vez de duplicar. Sin I/O propio para poder
+    acumular todos los jugadores de un sync y guardar una sola vez."""
+    entries = history.setdefault(player_id, [])
+    entries[:] = [e for e in entries if e.get("date") != date]
+    entries.append({"date": date, "score": score})
+    entries.sort(key=lambda e: e["date"])
+    del entries[:-SCORE_HISTORY_MAX_ENTRIES]
+    return entries
