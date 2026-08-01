@@ -55,6 +55,28 @@ def test_normalize_roster_handles_string_team_not_dict():
     assert result[0]["position"] == "POR"
 
 
+def test_normalize_roster_maps_real_clause_price_and_fitness_history():
+    # Confirmado contra el código fuente de futmondo-utils (get-teams-players.js):
+    # `player.clause.price` (precio EXACTO de clausulazo) y
+    # `player.average.fitness` (forma partido a partido) vienen en el roster.
+    raw = [{
+        "name": "Jugador Rival", "role": "delantero", "team": "Sevilla", "value": 5_000_000,
+        "clause": {"price": 8_500_000, "transferred": False},
+        "average": {"average": 6.5, "averageLastFive": 7.0, "fitness": [5, 6, 8, 7, 6]},
+    }]
+    result = futmondo.normalize_roster(raw)
+    assert result[0]["futmondo_clause_price"] == 8_500_000
+    assert result[0]["futmondo_fitness_history"] == [5, 6, 8, 7, 6]
+
+
+def test_normalize_roster_clause_price_none_for_own_players():
+    # Tu propia plantilla no trae `clause` (no te pagas una cláusula a ti mismo).
+    raw = [{"name": "Mi Jugador", "role": "delantero", "team": "Sevilla", "value": 5_000_000}]
+    result = futmondo.normalize_roster(raw)
+    assert result[0]["futmondo_clause_price"] is None
+    assert result[0]["futmondo_fitness_history"] is None
+
+
 def test_parse_match_odds_averages_bookmakers_and_normalizes():
     sels = [
         _sel("Alaves", [2.4, 2.6]),   # avg 2.5 -> implied 0.4

@@ -201,6 +201,17 @@ def normalize_roster(raw):
             # comprando barato antes de que suba / vendiendo en el pico.
             "futmondo_price_change": p.get("change"),
             "futmondo_buy_price": p.get("buyPrice"),
+            # Precio EXACTO de clausulazo, tal cual lo calcula Futmondo —
+            # confirmado en el roster de un jugador de OTRO manager (no
+            # aparece en el tuyo propio, no tiene sentido pagarte una
+            # cláusula a ti mismo). Sustituye a cualquier estimación por
+            # porcentaje: esto es el número real, no un cálculo nuestro.
+            "futmondo_clause_price": (p.get("clause") or {}).get("price"),
+            # Forma partido a partido (más reciente al final) que ya
+            # calcula la propia Futmondo — en cuanto haya jornadas jugadas,
+            # es mejor que cualquier histórico que construyamos nosotros
+            # desde cero.
+            "futmondo_fitness_history": average.get("fitness"),
         })
     return normalized
 

@@ -153,8 +153,8 @@ def test_scan_rival_weaknesses_skips_own_team_and_healthy_rivals(monkeypatch):
     assert weaknesses == []
 
 
-def _priced_player(name, position, price, average=6.0, points=30, team="Rival Team"):
-    return {
+def _priced_player(name, position, price, average=6.0, points=30, team="Rival Team", clause_price=None):
+    p = {
         "id": name,
         "name": name,
         "role": {"POR": "portero", "DEF": "defensa", "CEN": "centrocampista", "DEL": "delantero"}[position],
@@ -163,6 +163,29 @@ def _priced_player(name, position, price, average=6.0, points=30, team="Rival Te
         "average": {"average": average, "averageLastFive": average},
         "points": points,
     }
+    if clause_price is not None:
+        p["clause"] = {"price": clause_price}
+    return p
+
+
+def test_scan_rival_targets_uses_real_clause_price_when_available(monkeypatch):
+    # El precio real de clausulazo (clause.price de Futmondo) manda sobre
+    # cualquier estimación por porcentaje — es el dato exacto, no un cálculo.
+    monkeypatch.setattr(cache, "get_or_set", lambda key, fn, ttl=None: fn())
+    teams = [
+        {"id": "me", "name": "Yo", "teamValue": 1, "points": 0},
+        {"id": "rival1", "name": "Rival Bueno", "teamValue": 1, "points": 0},
+    ]
+    rosters = {
+        "rival1": [_priced_player("Estrella Rival", "DEL", 10_000_000, average=8.0, points=40, clause_price=18_750_000)],
+    }
+    client = _FakeClient(teams, rosters)
+    candidates, _ = transfers.scan_rival_targets(
+        client, squad=[], benchmark_value=0.3, next_match_index={}, real_budget_cap=None,
+        position_price_index={}, clause_increase_pct=0.9,  # si se usara, daría un número muy distinto
+    )
+    assert candidates[0]["clause_estimate"] == 18_750_000
+    assert candidates[0]["clause_is_estimate"] is False
 
 
 def test_scan_rival_targets_returns_scored_candidates_with_clause_estimate(monkeypatch):

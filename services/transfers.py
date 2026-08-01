@@ -538,13 +538,17 @@ def scan_rival_targets(
     abierto (mismo motor, mismas señales reales), así un objetivo bueno no
     se te escapa solo porque nunca sale a subasta libre.
 
-    El importe de clausulazo (`clause_estimate`) SOLO se calcula si
-    `clause_increase_pct` tiene una forma plausible de porcentaje (0-300%)
-    — el campo real de Futmondo para esto (`enablingClause`) nunca se ha
-    verificado contra datos reales y en producción ha dado valores que
-    generaban importes NEGATIVOS, así que ante la duda no se muestra un
-    número en vez de mostrar uno probablemente erróneo. Confirma siempre el
-    importe exacto en Futmondo antes de pujar."""
+    El importe de clausulazo (`clause_estimate`) es el precio EXACTO que
+    calcula la propia Futmondo (`clause.price` del roster del rival,
+    confirmado contra el código fuente de futmondo-utils) — no una
+    estimación nuestra. Solo si por lo que sea ese campo no viniera (no
+    debería pasar para un jugador de otro manager) se cae a una estimación
+    por `clause_increase_pct`, y solo si ese porcentaje tiene una forma
+    plausible (0-300%): el campo real de Futmondo para ese porcentaje
+    (`enablingClause`) nunca se ha verificado del todo y en producción ha
+    dado valores que generaban importes negativos, así que ante la duda no
+    se muestra un número en vez de mostrar uno probablemente erróneo.
+    `clause_is_estimate` dice si el número mostrado es real o estimado."""
     rival_players = _fetch_rival_owned_players(client)
     if not rival_players:
         return [], []
@@ -555,11 +559,18 @@ def scan_rival_targets(
 
     plausible_pct = clause_increase_pct is not None and 0 <= clause_increase_pct <= 3
     for r in ranked:
+        real_clause = scoring.parse_price(r.get("futmondo_clause_price"))
+        if real_clause:
+            r["clause_estimate"] = round(real_clause)
+            r["clause_is_estimate"] = False
+            continue
         current_price = scoring.parse_price(r.get("price"))
         if current_price and plausible_pct:
             r["clause_estimate"] = round(current_price * (1 + clause_increase_pct))
+            r["clause_is_estimate"] = True
         else:
             r["clause_estimate"] = None
+            r["clause_is_estimate"] = None
 
     candidates = [
         r for r in ranked
