@@ -9,7 +9,7 @@ load_dotenv()
 from services import store, scoring
 from services.sync import sync_all
 from services.api_football import ApiFootballClient
-from services.futmondo import FutmondoClient, FutmondoError, normalize_roster, normalize_league_teams
+from services.futmondo import FutmondoClient, FutmondoError, normalize_roster, normalize_league_teams, next_match_by_team
 from services import transfers as transfers_service
 
 app = Flask(__name__)
@@ -127,6 +127,7 @@ def transfers():
     api_enabled = ApiFootballClient().enabled
     errors = []
     listings = []
+    next_match_index = {}
 
     if futmondo_client.enabled:
         try:
@@ -134,19 +135,40 @@ def transfers():
             listings = normalize_roster(raw)
         except FutmondoError as e:
             errors.append(str(e))
+        try:
+            match_data = futmondo_client.get_match_list()
+            next_match_index = next_match_by_team(match_data)
+        except FutmondoError as e:
+            errors.append(f"No se pudo leer el calendario de Futmondo: {e}")
 
     squad = store.load_squad()
     status_cache = store.load_status_cache()
-    unavailable, worst_value = ([], [])
-    benchmark_value = scoring.DEFAULT_VALUE_BENCHMARK
-    if api_enabled:
-        unavailable, worst_value = transfers_service.sell_candidates(squad, status_cache)
-        squad_values = [status_cache.get(p["id"], {}).get("value") for p in squad]
-        benchmark_value = scoring.squad_value_benchmark(squad_values)
+    unavailable, worst_value = transfers_service.sell_candidates(squad, status_cache)
+    squad_values = [status_cache.get(p["id"], {}).get("value") for p in squad]
+    benchmark_value = scoring.squad_value_benchmark(squad_values)
+
+    # Tope real de puja según la configuración de tu liga (fondos + % sobre
+    # el valor de tu equipo) — si no lo conseguimos, seguimos solo con el
+    # tope por rentabilidad.
+    real_budget_cap = None
+    if futmondo_client.enabled:
+        try:
+            raw_teams = futmondo_client.get_league_teams()
+            teams, configuration = normalize_league_teams(raw_teams)
+            my_team = next((t for t in teams if t["id"] == futmondo_client.team_id), None)
+            if my_team:
+                real_budget_cap = scoring.real_budget_max_bid(
+                    configuration.get("budget"), my_team.get("team_value"),
+                    configuration.get("max_bid_over_funds_pct"),
+                )
+        except FutmondoError as e:
+            errors.append(f"No se pudo leer la configuración de tu liga: {e}")
 
     ranked = []
-    if listings and api_enabled:
-        ranked, rank_errors = transfers_service.rank_market(listings, benchmark_value, squad)
+    if listings:
+        ranked, rank_errors = transfers_service.rank_market(
+            listings, benchmark_value, squad, next_match_index, real_budget_cap,
+        )
         errors.extend(rank_errors)
 
     return render_template(
@@ -158,6 +180,7 @@ def transfers():
         futmondo_enabled=futmondo_client.enabled,
         api_enabled=api_enabled,
         benchmark_value=benchmark_value,
+        real_budget_cap=real_budget_cap,
     )
 
 

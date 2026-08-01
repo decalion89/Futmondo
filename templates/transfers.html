@@ -24,11 +24,15 @@
   </p>
   <p class="hint">
     🚫 = ya tienes el máximo de jugadores de ese equipo real permitido en tu liga
-    (según las normas de tu liga, 2 por equipo — ajustable en <code>FUTMONDO_MAX_SAME_TEAM</code>).
-    Pendiente de validar con datos reales: tu liga exige esperar 7 días desde la compra para
-    poder revender un jugador, y limita la puja máxima real a "fondos disponibles + 25% del
-    valor de tu equipo" — en cuanto veamos la respuesta real del mercado de Futmondo afinamos
-    esto también.
+    (2 por equipo — ajustable en <code>FUTMONDO_MAX_SAME_TEAM</code>).
+    {% if real_budget_cap is not none %}
+    La puja máxima ya tiene en cuenta el tope real que permite tu liga
+    (fondos disponibles + el % configurado sobre el valor de tu equipo):
+    ahora mismo no puedes pujar por encima de <strong>{{ "{:,.0f}".format(real_budget_cap).replace(",", ".") }}€</strong>
+    en ningún jugador, por muy rentable que parezca.
+    {% endif %}
+    Tu liga exige esperar {{ 7 }} días desde la compra para poder revender un jugador
+    (pendiente de avisar automáticamente hasta que confirmemos la fecha de compra en los datos).
   </p>
 
   {% if ranked %}
@@ -61,7 +65,8 @@
         <td data-label="Puja máxima">
           {% if p.max_bid is not none %}
             {{ "{:,.0f}".format(p.max_bid) }}€
-            {% if p.worth_bidding_more %} <span class="tag-ok">margen para pujar más</span>
+            {% if p.over_real_budget %} <span class="tag-warn">🚫 no te llega el presupuesto</span>
+            {% elif p.worth_bidding_more %} <span class="tag-ok">margen para pujar más</span>
             {% else %} <span class="tag-warn">ya en/sobre su límite</span>
             {% endif %}
           {% else %} — {% endif %}

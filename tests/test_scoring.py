@@ -367,3 +367,16 @@ def test_player_score_uses_futmondo_win_prob_over_swing():
         "DEL", rating=7.0, starter_rate=1.0, swing=swing_would_say_hard,
     )
     assert easy_by_odds > hard_by_swing_only
+
+
+def test_real_budget_max_bid_matches_league_configuration():
+    # Confirmado con datos reales: budget=350M, mnmp=0.25 ("Fondos +25%
+    # valor del equipo"). Con un equipo de 100M de valor: fondos = 250M,
+    # tope real = 250M + 0.25*100M = 275M.
+    assert scoring.real_budget_max_bid(budget=350_000_000, team_value=100_000_000, max_bid_over_funds_pct=0.25) == 275_000_000
+
+
+def test_real_budget_max_bid_none_without_data():
+    assert scoring.real_budget_max_bid(None, 100, 0.25) is None
+    assert scoring.real_budget_max_bid(350, None, 0.25) is None
+    assert scoring.real_budget_max_bid(350, 100, None) is None

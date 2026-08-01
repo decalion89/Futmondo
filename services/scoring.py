@@ -329,3 +329,17 @@ def max_recommended_bid(score, benchmark_value):
     if score is None or not benchmark_value or benchmark_value <= 0:
         return None
     return round((score / benchmark_value) * 1_000_000)
+
+
+def real_budget_max_bid(budget, team_value, max_bid_over_funds_pct):
+    """Tope real de puja que tu liga permite físicamente pagar, según su
+    configuración real (confirmado en /2/championship/teams): tus fondos
+    disponibles (presupuesto inicial menos el valor actual de tu plantilla
+    — así calcula Futmondo los fondos cuando la liga "quita el valor del
+    equipo del presupuesto") más un % extra sobre el valor de tu equipo.
+    No es una recomendación de rentabilidad, es un límite físico: por
+    mucho que un jugador valga la pena, no puedes pujar más de esto."""
+    if budget is None or team_value is None or max_bid_over_funds_pct is None:
+        return None
+    funds = budget - team_value
+    return round(funds + max_bid_over_funds_pct * team_value)
