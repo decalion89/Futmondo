@@ -401,5 +401,23 @@ def sync():
     return redirect(url_for("dashboard"))
 
 
+@app.route("/debug/player-summary/<name>")
+def debug_player_summary(name):
+    """TEMPORAL: inspeccionar la respuesta cruda de /1/player/summary para
+    un jugador de tu plantilla por nombre, a ver si trae historial
+    partido a partido (minutos, puntos) que hoy no estamos aprovechando.
+    Se retira en cuanto terminemos de investigar esto."""
+    client = FutmondoClient()
+    squad = store.load_squad()
+    player = next((p for p in squad if name.lower() in p["name"].lower()), None)
+    if not player:
+        return {"error": f"no encontrado: {name}"}, 404
+    try:
+        raw = client.get_player_summary(player.get("futmondo_player_id"))
+    except FutmondoError as e:
+        return {"error": str(e)}, 500
+    return raw
+
+
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
