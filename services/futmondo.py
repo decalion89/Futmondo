@@ -82,6 +82,14 @@ class FutmondoClient:
         — confirmado con datos reales (2026-08-01)."""
         return self._post("/1/player/summary", {"playerId": player_id})
 
+    def get_player_fullprofile(self, player_id):
+        """Ficha "Estadísticas" del jugador tal cual se ve en la app:
+        goles, minutos jugados, pases, entradas, y el histórico de
+        puntuación de temporadas anteriores — capturado inspeccionando la
+        pestaña de red del navegador el 2026-08-02, no está en el proyecto
+        open-source del que partió este cliente."""
+        return self._post("/1/player/fullprofile", {"playerId": player_id})
+
     def get_pressroom(self):
         """Actividad reciente del mercado de tu liga: quién ha puesto a
         quién en venta (con vendedor, precio, pujas ya recibidas) —

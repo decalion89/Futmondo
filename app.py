@@ -401,5 +401,18 @@ def sync():
     return redirect(url_for("dashboard"))
 
 
+@app.route("/debug/fullprofile/<player_id>")
+def debug_fullprofile(player_id):
+    """TEMPORAL: inspeccionar /1/player/fullprofile, encontrado por el
+    usuario en la pestaña Red del navegador. Se retira tras confirmar la
+    estructura."""
+    client = FutmondoClient()
+    try:
+        raw = client.get_player_fullprofile(player_id)
+    except FutmondoError as e:
+        return {"error": str(e)}, 500
+    return raw
+
+
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
