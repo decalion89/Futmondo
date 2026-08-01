@@ -429,3 +429,57 @@ def test_purchase_profit_none_when_not_actively_bought():
     # buyPrice=0 en Futmondo significa "no comprado por mercado" (reparto inicial)
     assert scoring.purchase_profit(current_value=12_000_000, buy_price=0) is None
     assert scoring.purchase_profit(current_value=12_000_000, buy_price=None) is None
+
+
+def _p(id_, position, score):
+    return {"id": id_, "name": id_, "position": position, "score": score}
+
+
+def test_best_lineup_picks_formation_with_highest_total():
+    # Con solo 2 delanteros disponibles, una formación con 3 DEL queda
+    # descartada aunque en teoría diera más puntos.
+    players = (
+        [_p(f"por{i}", "POR", 6.0) for i in range(1)]
+        + [_p(f"def{i}", "DEF", 6.0 + i * 0.1) for i in range(5)]
+        + [_p(f"cen{i}", "CEN", 6.0 + i * 0.1) for i in range(5)]
+        + [_p(f"del{i}", "DEL", 7.0 + i * 0.1) for i in range(2)]
+    )
+    lineup = scoring.best_lineup(players)
+    assert lineup is not None
+    assert lineup["formation"].endswith("-2")  # solo 2 delanteros disponibles
+    assert len(lineup["starters"]) == 11
+
+
+def test_best_lineup_bench_excludes_starters():
+    players = (
+        [_p("por1", "POR", 6.0), _p("por2", "POR", 5.0)]
+        + [_p(f"def{i}", "DEF", 6.0) for i in range(5)]
+        + [_p(f"cen{i}", "CEN", 6.0) for i in range(5)]
+        + [_p(f"del{i}", "DEL", 6.0) for i in range(3)]
+    )
+    lineup = scoring.best_lineup(players)
+    starter_ids = {p["id"] for p in lineup["starters"]}
+    bench_ids = {p["id"] for p in lineup["bench"]}
+    assert starter_ids.isdisjoint(bench_ids)
+    assert "por2" in bench_ids  # el segundo portero, peor puntuado, al banquillo
+
+
+def test_best_lineup_none_when_squad_incomplete():
+    # Solo 1 defensa disponible: ninguna formación habitual cabe.
+    players = [_p("por1", "POR", 6.0), _p("def1", "DEF", 6.0)]
+    assert scoring.best_lineup(players) is None
+
+
+def test_best_lineup_ignores_players_without_score():
+    players = (
+        [_p("por1", "POR", 6.0)]
+        + [_p(f"def{i}", "DEF", 6.0) for i in range(5)]
+        + [_p(f"cen{i}", "CEN", 6.0) for i in range(5)]
+        + [_p(f"del{i}", "DEL", 6.0) for i in range(3)]
+        + [{"id": "lesionado1", "name": "lesionado1", "position": "DEL", "score": None}]
+    )
+    lineup = scoring.best_lineup(players)
+    starter_ids = {p["id"] for p in lineup["starters"]}
+    bench_ids = {p["id"] for p in lineup["bench"]}
+    assert "lesionado1" not in starter_ids
+    assert "lesionado1" not in bench_ids

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import sparkline %}
 {% block title %}Mercado - Futmondo Manager{% endblock %}
 {% block content %}
   <div class="section-title"><h2>Mercado</h2></div>
@@ -26,6 +27,7 @@
         <th>Pos.</th>
         <th>Equipo</th>
         <th>Precio</th>
+        <th>Tendencia</th>
         <th>Pujas</th>
         <th>Cierra en</th>
       </tr>
@@ -48,6 +50,7 @@
           {% elif p.get('price_trend') == 'down' %}<span class="trend-down" title="Bajando de valor">▼</span>
           {% endif %}
         </td>
+        <td data-label="Tendencia">{{ sparkline(p.get('sparkline')) }}</td>
         <td data-label="Pujas">{{ p.get('futmondo_bids', 0) }}</td>
         <td data-label="Cierra en">
           {% if p.get('futmondo_expiration') %}

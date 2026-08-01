@@ -82,6 +82,7 @@ def dashboard():
     )
 
     last_sync = max((r["updated_at"] for r in rows if r.get("updated_at")), default=None)
+    lineup = scoring.best_lineup(rows)
 
     prices = [scoring.parse_price(r.get("price")) for r in rows]
     total_value = sum(v for v in prices if v)
@@ -105,6 +106,7 @@ def dashboard():
         concentration=concentration,
         concentration_warning=concentration_warning,
         last_sync=last_sync,
+        lineup=lineup,
     )
 
 
@@ -118,6 +120,14 @@ def market():
             listings = normalize_roster(raw)
             for p in listings:
                 p["price_trend"] = scoring.price_trend(p.get("price"), p.get("futmondo_price_change"))
+                player_id = p.get("futmondo_player_id")
+                if player_id:
+                    try:
+                        history = get_price_history(client, player_id)
+                        prices = [h["price"] for h in history.get("history", [])]
+                        p["sparkline"] = viz.sparkline_svg(prices)
+                    except FutmondoError:
+                        p["sparkline"] = None
         except FutmondoError as e:
             error = str(e)
     return render_template(

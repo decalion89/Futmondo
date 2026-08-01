@@ -74,6 +74,28 @@
     </div>
   {% endif %}
 
+  {% if lineup %}
+  <details class="add-player" open>
+    <summary>⚽ Once ideal recomendado ({{ lineup.formation }}) — puntuación total {{ lineup.total }}</summary>
+    <p class="hint" style="margin-top:0.5rem;">La formación que más puntuación total permite con quién tienes disponible ahora mismo — no es un plan táctico, es "quién puntúa más" entre los tuyos, respetando una formación habitual.</p>
+    <div class="player-list" style="margin-top:0.5rem;">
+      {% for pos in positions %}
+        {% for p in lineup.starters if p.position == pos %}
+          {{ player_card(p, readonly=true) }}
+        {% endfor %}
+      {% endfor %}
+    </div>
+    {% if lineup.bench %}
+    <h3 style="margin-top:1rem;">Banquillo</h3>
+    <div class="player-list">
+      {% for p in lineup.bench %}
+        {{ player_card(p, readonly=true) }}
+      {% endfor %}
+    </div>
+    {% endif %}
+  </details>
+  {% endif %}
+
   {{ position_tabs(positions) }}
 
   <div class="player-list" id="player-list">

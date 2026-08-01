@@ -410,3 +410,55 @@ def purchase_profit(current_value, buy_price):
     if not parsed_buy or parsed_value is None:
         return None
     return round(parsed_value - parsed_buy)
+
+
+# Formaciones habituales (Portero, Defensas, Centrocampistas, Delanteros).
+# Se prueban todas y se elige la que más puntuación total permite con los
+# jugadores que tienes disponibles ahora mismo — no una formación fija.
+FORMATIONS = [
+    (1, 3, 4, 3), (1, 3, 5, 2), (1, 4, 3, 3), (1, 4, 4, 2),
+    (1, 4, 5, 1), (1, 5, 3, 2), (1, 5, 4, 1),
+]
+
+
+def best_lineup(available_players, formations=FORMATIONS):
+    """Elige la formación que maximiza la puntuación total con tus
+    jugadores disponibles (status ok, con puntuación calculada) y quién
+    ocupa cada puesto. `available_players` son dicts con al menos
+    `position` y `score`. Devuelve None si no hay jugadores suficientes
+    para completar NINGUNA formación habitual (once incompleto).
+
+    Es una heurística de "quién puntúa más", no un plan táctico real — no
+    sabemos qué XI juega cada equipo, solo comparamos tus propios jugadores
+    entre sí.
+    """
+    by_position = {"POR": [], "DEF": [], "CEN": [], "DEL": []}
+    for p in available_players or []:
+        if p.get("score") is not None and p.get("position") in by_position:
+            by_position[p["position"]].append(p)
+    for pos in by_position:
+        by_position[pos].sort(key=lambda p: p["score"], reverse=True)
+
+    best = None
+    for por, de, ce, dl in formations:
+        counts = {"POR": por, "DEF": de, "CEN": ce, "DEL": dl}
+        if any(len(by_position[pos]) < n for pos, n in counts.items()):
+            continue
+        starters = []
+        for pos, n in counts.items():
+            starters.extend(by_position[pos][:n])
+        total = round(sum(p["score"] for p in starters), 2)
+        if best is None or total > best["total"]:
+            best = {"formation": f"{por}-{de}-{ce}-{dl}", "starters": starters, "total": total}
+
+    if best is None:
+        return None
+
+    starter_keys = {p.get("id") or p.get("name") for p in best["starters"]}
+    bench = [
+        p for p in available_players
+        if p.get("score") is not None and (p.get("id") or p.get("name")) not in starter_keys
+    ]
+    bench.sort(key=lambda p: p["score"], reverse=True)
+    best["bench"] = bench
+    return best
