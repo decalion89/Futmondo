@@ -415,5 +415,18 @@ def debug_rival_roster(team_id):
     return raw
 
 
+@app.route("/debug/player-summary-id/<player_id>")
+def debug_player_summary_id(player_id):
+    """TEMPORAL: como el anterior pero por id directo (para un jugador de
+    un rival, no de tu propia plantilla) — a ver si championship.clause
+    aparece ahí en vez de en el roster."""
+    client = FutmondoClient()
+    try:
+        raw = client.get_player_summary(player_id)
+    except FutmondoError as e:
+        return {"error": str(e)}, 500
+    return raw
+
+
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
