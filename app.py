@@ -49,7 +49,14 @@ def dashboard():
     rows = []
     for p in players:
         info = status_cache.get(p["id"], {})
-        rows.append({**p, **info})
+        row = {**p, **info}
+        # Si aún no se ha sincronizado con API-Football pero Futmondo ya
+        # trajo su propio estado de lesión/sanción al importar, mostrarlo
+        # igualmente en vez de "sin sincronizar".
+        if "status" not in info and p.get("futmondo_status"):
+            row["status"] = p["futmondo_status"]
+            row["reason"] = "Marcado por Futmondo"
+        rows.append(row)
 
     order = {"sancionado": 0, "lesionado": 1, "duda": 2, "ok": 3}
     rows.sort(key=lambda r: order.get(r.get("status", "ok"), 3))
