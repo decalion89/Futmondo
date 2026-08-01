@@ -64,3 +64,32 @@ def sparkline_svg(values, width=72, height=24, padding=3, dates=None):
         "height": height,
         "trend_class": "trend-up" if values[-1] >= values[0] else "trend-down",
     }
+
+
+# % desde arriba de cada línea en el campo — portero pegado a su portería
+# (abajo), delanteros pegados a la portería rival (arriba), como en
+# cualquier alineación visual de fantasy football.
+PITCH_ROW_Y = {"POR": 90, "DEF": 68, "CEN": 42, "DEL": 16}
+PITCH_ROW_ORDER = ["POR", "DEF", "CEN", "DEL"]
+
+
+def pitch_layout(starters):
+    """Coloca a los titulares en un campo visual: posición x/y en % según
+    su línea (POR/DEF/CEN/DEL) y su orden dentro de ella, repartidos a
+    partes iguales en horizontal. Devuelve una lista de
+    {player, x, y} en el mismo orden que PITCH_ROW_ORDER (portero primero,
+    delanteros al final) — sirve para dibujar el campo sin depender de
+    ningún dato adicional más allá de la posición de cada jugador."""
+    by_position = {}
+    for p in starters or []:
+        by_position.setdefault(p.get("position"), []).append(p)
+
+    layout = []
+    for position in PITCH_ROW_ORDER:
+        row_players = by_position.get(position, [])
+        n = len(row_players)
+        y = PITCH_ROW_Y[position]
+        for i, player in enumerate(row_players):
+            x = (i + 1) / (n + 1) * 100
+            layout.append({"player": player, "x": round(x, 1), "y": y})
+    return layout

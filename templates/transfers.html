@@ -120,6 +120,48 @@
   <div class="empty-state">Sin candidatos analizados todavía (revisa que haya jugadores en el mercado y las claves configuradas).</div>
   {% endif %}
 
+  {% if rival_targets %}
+  <div class="section-title"><h2>🔒 Objetivos en plantillas rivales (clausulazo)</h2></div>
+  <p class="hint">
+    Jugadores de otros managers de tu liga que puntúan bien para lo que cuestan — mismos criterios que el mercado abierto, para que no se te escape un objetivo solo porque nunca sale a subasta libre.
+    <strong>El importe de clausulazo es una estimación</strong> (precio actual + el % de tu liga) — confirma el importe exacto en Futmondo antes de pujar, puede haber reglas adicionales que no vemos desde aquí (días desde su última compra, etc.).
+  </p>
+  <table>
+    <thead>
+      <tr>
+        <th>Jugador</th><th>Pos.</th><th>Equipo</th><th>Dueño actual</th>
+        <th>Valor actual</th><th>Puntuación</th><th>Valor (pts/M€)</th>
+        <th>Puja de clausulazo (estimada)</th><th>Por qué</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in rival_targets %}
+      <tr class="{{ 'highlight' if loop.index <= 3 }}">
+        <td data-label="Jugador">
+          <div class="avatar avatar-sm">
+            {% if p.get('photo_url') %}<img src="{{ p.photo_url }}" alt="" onerror="this.remove()">{% endif %}
+            <span class="avatar-initials">{{ p.name[:2]|upper }}</span>
+          </div>
+          {{ p.name }}
+        </td>
+        <td data-label="Pos.">{{ p.position }}</td>
+        <td data-label="Equipo">{{ p.team }}</td>
+        <td data-label="Dueño actual">{{ p.owner_team }}</td>
+        <td data-label="Valor actual">{{ "{:,.0f}".format(p.price|float).replace(",", ".") + "€" if p.price else '—' }}</td>
+        <td data-label="Puntuación">{{ p.score or '—' }}{% if p.get('score_from_price') %} <span title="Pretemporada: estimado por precio">💰</span>{% elif p.get('score_low_sample') %} <span title="Dato real con margen">📊</span>{% endif %}</td>
+        <td data-label="Valor (pts/M€)"><strong>{{ p.value if p.value is not none else '—' }}</strong></td>
+        <td data-label="Puja de clausulazo">
+          {% if p.clause_estimate is not none %}
+            ~{{ "{:,.0f}".format(p.clause_estimate).replace(",", ".") }}€
+          {% else %} — {% endif %}
+        </td>
+        <td data-label="Por qué" style="white-space:normal; min-width:14rem;">{{ p.reason or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
   <div class="section-title"><h2>Vender: prioridad por riesgo</h2></div>
   <p class="hint">Primero los que ahora mismo no suman (lesión/sanción/duda) — no tiene sentido pagarles clausula/mantenerlos si tienes mejor opción. Luego, de entre tus jugadores disponibles, los de peor relación puntos/precio.</p>
 

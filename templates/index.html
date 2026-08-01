@@ -122,6 +122,26 @@
   <details class="add-player" open>
     <summary>⚽ Once ideal recomendado ({{ lineup.formation }}) — puntuación total {{ lineup.total }}</summary>
     <p class="hint" style="margin-top:0.5rem;">La formación que más puntuación total permite con quién tienes disponible ahora mismo — no es un plan táctico, es "quién puntúa más" entre los tuyos, respetando una formación habitual.</p>
+
+    {% if pitch %}
+    <div class="pitch">
+      <div class="pitch-box pitch-box-top"></div>
+      <div class="pitch-box pitch-box-bottom"></div>
+      {% for item in pitch %}
+      <div class="pitch-player" style="left:{{ item.x }}%; top:{{ item.y }}%;">
+        <div class="avatar avatar-sm">
+          {% if item.player.get('photo_url') %}<img src="{{ item.player.photo_url }}" alt="" onerror="this.remove()">{% endif %}
+          <span class="avatar-initials">{{ item.player.name[:2]|upper }}</span>
+        </div>
+        <div class="pitch-player-name">{{ item.player.name }}</div>
+        <div class="pitch-player-score">
+          {{ item.player.score if item.player.score is not none else '—' }}{% if item.player.get('titular_probability') is not none %} · {{ item.player.titular_probability }}%{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
     <div class="player-list" style="margin-top:0.5rem;">
       {% for pos in positions %}
         {% for p in lineup.starters if p.position == pos %}

@@ -15,6 +15,7 @@ from services.futmondo import (
 )
 from services import transfers as transfers_service
 from services import viz
+from services import futmondo_magazine
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET", "futmondo-local-dev")
@@ -84,6 +85,7 @@ def dashboard():
 
     last_sync = max((r["updated_at"] for r in rows if r.get("updated_at")), default=None)
     lineup = scoring.best_lineup(rows)
+    pitch = viz.pitch_layout(lineup["starters"]) if lineup else None
 
     prices = [scoring.parse_price(r.get("price")) for r in rows]
     total_value = sum(v for v in prices if v)
@@ -128,6 +130,7 @@ def dashboard():
         concentration_warning=concentration_warning,
         last_sync=last_sync,
         lineup=lineup,
+        pitch=pitch,
         top_buys=top_buys,
         top_sells=top_sells,
         my_rank=market_result["my_rank"],
@@ -198,9 +201,21 @@ def transfers():
             except FutmondoError:
                 r["sparkline"] = None
 
+    # Objetivos en plantillas rivales (clausulazo) — mismos criterios que el
+    # mercado abierto, para que un buen fichaje no se te escape solo porque
+    # nunca sale a subasta libre.
+    rival_targets = []
+    if futmondo_client.enabled:
+        rival_targets, rival_target_errors = transfers_service.scan_rival_targets(
+            futmondo_client, squad, result["benchmark_value"], result["next_match_index"],
+            result["real_budget_cap"], result["position_price_index"], result["clause_increase_pct"],
+        )
+        result["errors"].extend(rival_target_errors)
+
     return render_template(
         "transfers.html",
         ranked=ranked,
+        rival_targets=rival_targets,
         unavailable=unavailable,
         worst_value=worst_value,
         errors=result["errors"],
@@ -244,12 +259,16 @@ def league():
             weaknesses = transfers_service.scan_rival_weaknesses(client)
         except FutmondoError as e:
             error = error or str(e)
+    # Fuente pública oficial (magazine.futmondo.com), no depende de tu
+    # token — funciona aunque Futmondo no esté configurado.
+    magazine_posts = futmondo_magazine.get_latest_posts(limit=5)
     return render_template(
         "league.html",
         teams=teams,
         configuration=configuration,
         activity=activity,
         weaknesses=weaknesses,
+        magazine_posts=magazine_posts,
         error=error,
         futmondo_enabled=client.enabled,
     )

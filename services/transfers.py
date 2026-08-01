@@ -343,6 +343,7 @@ def full_market_ranking(client, squad, status_cache):
         return {
             "ranked": [], "errors": errors, "benchmark_value": scoring.DEFAULT_VALUE_BENCHMARK,
             "real_budget_cap": None, "resale_lock_days": None, "my_rank": None, "total_teams": None,
+            "clause_increase_pct": None, "next_match_index": {}, "position_price_index": {},
         }
 
     try:
@@ -367,12 +368,14 @@ def full_market_ranking(client, squad, status_cache):
 
     real_budget_cap = None
     resale_lock_days = None
+    clause_increase_pct = None
     my_rank = None
     total_teams = None
     try:
         raw_teams = client.get_league_teams()
         teams, configuration = normalize_league_teams(raw_teams)
         resale_lock_days = configuration.get("resale_lock_days")
+        clause_increase_pct = configuration.get("clause_increase_pct")
         my_team = next((t for t in teams if t["id"] == client.team_id), None)
         if my_team:
             real_budget_cap = scoring.real_budget_max_bid(
@@ -402,7 +405,8 @@ def full_market_ranking(client, squad, status_cache):
     return {
         "ranked": ranked, "errors": errors, "benchmark_value": benchmark_value,
         "real_budget_cap": real_budget_cap, "resale_lock_days": resale_lock_days,
-        "my_rank": my_rank, "total_teams": total_teams,
+        "my_rank": my_rank, "total_teams": total_teams, "clause_increase_pct": clause_increase_pct,
+        "next_match_index": next_match_index, "position_price_index": position_price_index,
     }
 
 
@@ -445,3 +449,67 @@ def scan_rival_weaknesses(client):
         return weaknesses
 
     return cache.get_or_set("rival_weaknesses", _fetch, ttl=3 * 3600)
+
+
+def _fetch_rival_owned_players(client):
+    """Plantilla de TODOS los rivales de tu liga, cada jugador etiquetado
+    con `owner_team` (quién lo tiene) — a diferencia de collect_known_players
+    (que mezcla rivales + mercado sin diferenciar, para el índice de
+    precios), aquí necesitamos saber de quién es cada uno para poder decir
+    "fichar a X del equipo de Y". Cacheado: implica una llamada por rival."""
+    def _fetch():
+        try:
+            raw_teams = client.get_league_teams()
+            teams, _ = normalize_league_teams(raw_teams)
+        except FutmondoError:
+            return []
+        players = []
+        for t in teams:
+            if t.get("id") == client.team_id:
+                continue
+            try:
+                roster = normalize_roster(client.get_roster(team_id=t["id"]))
+            except FutmondoError:
+                continue
+            for p in roster:
+                p["owner_team"] = t.get("name")
+            players.extend(roster)
+        return players
+
+    return cache.get_or_set(f"rival_owned_players:{client.championship_id}", _fetch, ttl=3 * 3600)
+
+
+def scan_rival_targets(
+    client, squad, benchmark_value, next_match_index, real_budget_cap,
+    position_price_index, clause_increase_pct, top=10,
+):
+    """Jugadores de OTROS managers de tu liga que valdría la pena intentar
+    fichar por clausulazo — se puntúan exactamente igual que el mercado
+    abierto (mismo motor, mismas señales reales), así un objetivo bueno no
+    se te escapa solo porque nunca sale a subasta libre.
+
+    El importe de clausulazo (`clause_estimate`) es una ESTIMACIÓN: precio
+    actual del jugador + el % de incremento configurado en tu liga —
+    confirma el importe exacto en Futmondo antes de pujar, puede aplicar
+    reglas adicionales que no vemos desde aquí (días desde su última
+    compra, etc.)."""
+    rival_players = _fetch_rival_owned_players(client)
+    if not rival_players:
+        return [], []
+
+    ranked, errors = rank_market(
+        rival_players, benchmark_value, squad, next_match_index, real_budget_cap, position_price_index,
+    )
+
+    for r in ranked:
+        current_price = scoring.parse_price(r.get("price"))
+        if current_price and clause_increase_pct is not None:
+            r["clause_estimate"] = round(current_price * (1 + clause_increase_pct))
+        else:
+            r["clause_estimate"] = None
+
+    candidates = [
+        r for r in ranked
+        if not r.get("team_limit_reached") and not r.get("low_confidence_fringe")
+    ]
+    return candidates[:top], errors

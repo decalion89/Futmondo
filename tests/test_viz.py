@@ -62,3 +62,44 @@ def test_format_date_handles_bad_input_gracefully():
     assert viz._format_date(None) is None
     assert viz._format_date("not-a-date") == "not-a-date"
     assert viz._format_date("2026-01-05T00:00:00.000Z") == "5 ene"
+
+
+def _p(name, position):
+    return {"name": name, "position": position}
+
+
+def test_pitch_layout_orders_rows_goalkeeper_first_forwards_last():
+    starters = [
+        _p("del1", "DEL"), _p("cen1", "CEN"), _p("def1", "DEF"), _p("por1", "POR"),
+    ]
+    layout = viz.pitch_layout(starters)
+    assert [item["player"]["name"] for item in layout] == ["por1", "def1", "cen1", "del1"]
+
+
+def test_pitch_layout_goalkeeper_lowest_forwards_highest_on_screen():
+    # y = % desde arriba: el portero (pegado a su portería, abajo del
+    # campo) debe tener el y más alto; los delanteros (arriba), el más bajo.
+    layout = viz.pitch_layout([_p("por1", "POR"), _p("del1", "DEL")])
+    por_y = next(i["y"] for i in layout if i["player"]["name"] == "por1")
+    del_y = next(i["y"] for i in layout if i["player"]["name"] == "del1")
+    assert por_y > del_y
+
+
+def test_pitch_layout_spreads_row_evenly_and_within_bounds():
+    starters = [_p(f"def{i}", "DEF") for i in range(4)]
+    layout = viz.pitch_layout(starters)
+    xs = [item["x"] for item in layout]
+    assert xs == sorted(xs)  # mismo orden que llegaron
+    assert all(0 < x < 100 for x in xs)
+    assert len(set(xs)) == 4  # cuatro posiciones horizontales distintas
+
+
+def test_pitch_layout_empty_without_starters():
+    assert viz.pitch_layout([]) == []
+    assert viz.pitch_layout(None) == []
+
+
+def test_pitch_layout_ignores_players_without_known_position():
+    layout = viz.pitch_layout([_p("por1", "POR"), {"name": "raro", "position": "COORDINADOR"}])
+    assert len(layout) == 1
+    assert layout[0]["player"]["name"] == "por1"
