@@ -207,28 +207,51 @@ def attacking_output_bonus(position, goals, assists, appearences):
     return round(contributions_per_game * weight * ATTACKING_BONUS_SCALE, 3)
 
 
+def fixture_factor_from_win_prob(win_prob):
+    """Convierte la probabilidad de victoria implícita en las cuotas reales
+    de Futmondo (mercado de apuestas, ya incorpora lesiones/forma/todo) en
+    un factor de dificultad. Sirve igual para ataque y defensa: ser gran
+    favorito suele significar rival flojo tanto atrás como delante, así
+    que no hace falta separar por posición como con el cálculo antiguo
+    basado en goles a favor/en contra."""
+    if win_prob is None:
+        return 1.0
+    return round(0.75 + min(max(win_prob, 0.0), 1.0) * 0.6, 3)
+
+
 def player_score(
     position, rating, starter_rate, swing, congestion_count=None, motivation_factor=1.0,
     penalty_taker=False, goals=None, assists=None, appearences=None,
+    futmondo_form=None, futmondo_win_prob=None,
 ):
     """Puntuación relativa para comparar tus propios jugadores disponibles
-    entre sí (no es una predicción de puntos Futmondo)."""
-    base = rating if rating is not None else 6.0
+    entre sí (no es una predicción de puntos Futmondo).
+
+    Si hay datos propios de Futmondo (media de puntos reales del jugador,
+    probabilidad de victoria de las cuotas de su próximo partido), se usan
+    con prioridad por ser más directos/fiables; si no, cae en el cálculo
+    basado en API-Football (rating genérico + goles del rival)."""
+    base = futmondo_form if futmondo_form is not None else (rating if rating is not None else 6.0)
     base += attacking_output_bonus(position, goals, assists, appearences)
-    fixture_factor = 1.0
-    if position in ("DEL", "CEN"):
-        ga = swing.get("avg_goals_against_rivals")
-        if ga is not None:
-            fixture_factor = 0.85 + min(ga, 2.5) * 0.15
-    elif position in ("DEF", "POR"):
-        gf = swing.get("avg_goals_for_rivals")
-        if gf is not None:
-            fixture_factor = 1.15 - min(gf, 2.5) * 0.15
-    # Un rival en buena racha reciente es más peligroso de lo que dice su
-    # media anual (y viceversa), nos beneficie el partido en la dirección
-    # que sea: por eso se invierte (racha rival alta = peor para nosotros).
-    next_rival_form = swing.get("next_rival_form_factor", 1.0) or 1.0
-    fixture_factor *= (2.0 - next_rival_form)
+
+    if futmondo_win_prob is not None:
+        fixture_factor = fixture_factor_from_win_prob(futmondo_win_prob)
+    else:
+        fixture_factor = 1.0
+        if position in ("DEL", "CEN"):
+            ga = swing.get("avg_goals_against_rivals")
+            if ga is not None:
+                fixture_factor = 0.85 + min(ga, 2.5) * 0.15
+        elif position in ("DEF", "POR"):
+            gf = swing.get("avg_goals_for_rivals")
+            if gf is not None:
+                fixture_factor = 1.15 - min(gf, 2.5) * 0.15
+        # Un rival en buena racha reciente es más peligroso de lo que dice su
+        # media anual (y viceversa), nos beneficie el partido en la dirección
+        # que sea: por eso se invierte (racha rival alta = peor para nosotros).
+        next_rival_form = swing.get("next_rival_form_factor", 1.0) or 1.0
+        fixture_factor *= (2.0 - next_rival_form)
+
     reliability = 0.7 + 0.3 * (starter_rate if starter_rate is not None else 0.5)
     fatigue = fatigue_factor(congestion_count)
     penalty_bonus = 1.05 if penalty_taker else 1.0

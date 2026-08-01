@@ -1,0 +1,108 @@
+"""Tests de las funciones puras de parseo de la API de Futmondo
+(services/futmondo.py). Sin red: usan respuestas de ejemplo con la forma
+real confirmada el 2026-08-01.
+"""
+import sys
+import os
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from services import futmondo
+
+
+def _match(home_name, away_name, home_id="home1", away_id="away1", sels=None):
+    return {
+        "homeTeam": {"id": home_id, "name": home_name},
+        "awayTeam": {"id": away_id, "name": away_name},
+        "date": "2026-08-15T17:30:00.000Z",
+        "odds": {"sels": sels or []},
+    }
+
+
+def _sel(name, odds_values):
+    return {"sn": name, "odds": [{"c": v} for v in odds_values]}
+
+
+def test_normalize_roster_maps_real_fields():
+    raw = [{
+        "id": "abc123",
+        "name": "Diego Llorente",
+        "role": "defensa",
+        "team": "Betis",
+        "teamId": "team-betis",
+        "value": 11786886,
+        "status": "injured2",
+        "points": 12,
+        "rating": 4,
+        "average": {"average": 5.2, "averageLastFive": 6.1},
+    }]
+    result = futmondo.normalize_roster(raw)
+    assert len(result) == 1
+    p = result[0]
+    assert p["position"] == "DEF"
+    assert p["team"] == "Betis"
+    assert p["futmondo_team_id"] == "team-betis"
+    assert p["futmondo_status"] == "lesionado"
+    assert p["futmondo_average"] == 5.2
+    assert p["futmondo_average_last_five"] == 6.1
+    assert p["futmondo_points"] == 12
+
+
+def test_normalize_roster_handles_string_team_not_dict():
+    raw = [{"name": "X", "role": "portero", "team": "Valencia", "value": 100}]
+    result = futmondo.normalize_roster(raw)
+    assert result[0]["team"] == "Valencia"
+    assert result[0]["position"] == "POR"
+
+
+def test_parse_match_odds_averages_bookmakers_and_normalizes():
+    sels = [
+        _sel("Alaves", [2.4, 2.6]),   # avg 2.5 -> implied 0.4
+        _sel("Draw", [3.0, 3.0]),      # avg 3.0 -> implied 0.333
+        _sel("Getafe", [3.0, 3.4]),   # avg 3.2 -> implied 0.3125
+    ]
+    match = _match("Alaves", "Getafe", sels=sels)
+    probs = futmondo.parse_match_odds(match, "Alaves", "Getafe")
+    assert probs is not None
+    assert abs(sum(probs.values()) - 1.0) < 1e-9
+    # El favorito (cuota más baja) debe tener la probabilidad más alta
+    assert probs["home"] > probs["away"] > probs["draw"] or probs["home"] > probs["draw"]
+
+
+def test_parse_match_odds_none_without_odds():
+    match = _match("Alaves", "Getafe", sels=[])
+    assert futmondo.parse_match_odds(match, "Alaves", "Getafe") is None
+
+
+def test_parse_match_odds_matches_inconsistent_team_naming():
+    # Confirmado con datos reales: la ficha del partido dice "Racing" y
+    # "Atlético de Madrid", pero la cuota usa "Racing Santander" y
+    # "Atlético Madrid" — nombres distintos para el mismo equipo.
+    sels = [_sel("Draw", [3.0]), _sel("Racing Santander", [3.5]), _sel("Villarreal", [2.1])]
+    match = _match("Racing", "Villarreal", sels=sels)
+    probs = futmondo.parse_match_odds(match, "Racing", "Villarreal")
+    assert probs is not None
+    assert probs["home"] > 0  # antes del fix esto daba 0 por no encontrar "Racing"
+
+    sels2 = [_sel("Atlético Madrid", [1.8]), _sel("Draw", [3.6]), _sel("Málaga", [4.5])]
+    match2 = _match("Atlético de Madrid", "Málaga", sels=sels2)
+    probs2 = futmondo.parse_match_odds(match2, "Atlético de Madrid", "Málaga")
+    assert probs2 is not None
+    assert probs2["home"] > probs2["away"]
+
+
+def test_next_match_by_team_indexes_home_and_away():
+    sels = [_sel("Alaves", [2.0]), _sel("Draw", [3.0]), _sel("Getafe", [4.0])]
+    match_list = {"matches": [_match("Alaves", "Getafe", home_id="t-alaves", away_id="t-getafe", sels=sels)]}
+    index = futmondo.next_match_by_team(match_list)
+    assert index["t-alaves"]["rival"] == "Getafe"
+    assert index["t-alaves"]["is_home"] is True
+    assert index["t-getafe"]["rival"] == "Alaves"
+    assert index["t-getafe"]["is_home"] is False
+    # El favorito (Alaves, cuota más baja) debe tener win_prob más alta que el rival
+    assert index["t-alaves"]["win_prob"] > index["t-getafe"]["win_prob"]
+
+
+def test_next_match_by_team_empty_without_matches():
+    assert futmondo.next_match_by_team({}) == {}
+    assert futmondo.next_match_by_team(None) == {}

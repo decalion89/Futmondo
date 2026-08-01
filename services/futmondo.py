@@ -76,6 +76,12 @@ class FutmondoClient:
     def get_championship_teams(self):
         return self._post("/2/championship/teams")
 
+    def get_match_list(self):
+        """Calendario de la jornada actual: partidos reales (equipo local/
+        visitante, fecha) con cuotas de casas de apuestas por partido.
+        Confirmado con datos reales (2026-08-01) en `/1/match/list`."""
+        return self._post("/1/match/list")
+
 
 # Confirmado con datos reales (2026-08-01): el campo de posición es `role`,
 # en español y en minúsculas.
@@ -145,13 +151,112 @@ def normalize_roster(raw):
             or p.get("posId")
             or "?"
         )
+        average = p.get("average") or {}
         normalized.append({
             "name": p.get("nickname") or p.get("name") or p.get("playerName") or "Desconocido",
             "position": position,
             "team": team_name or "?",
             "price": p.get("value") or p.get("clausule") or p.get("marketValue") or p.get("price"),
             "futmondo_player_id": p.get("id") or p.get("playerId"),
+            "futmondo_team_id": p.get("teamId"),
             "photo_url": p.get("photoUrl") or p.get("image") or p.get("urlPhoto") or p.get("avatar"),
             "futmondo_status": _map_status(p.get("status")),
+            # Forma/puntuación reales de Futmondo (0 en pretemporada, útiles
+            # en cuanto arranque la liga): media de la temporada, media de
+            # los últimos 5, puntos totales y rating de la última jornada.
+            "futmondo_average": average.get("average"),
+            "futmondo_average_last_five": average.get("averageLastFive"),
+            "futmondo_points": p.get("points"),
+            "futmondo_rating": p.get("rating"),
         })
     return normalized
+
+
+def _normalize_team_name(name):
+    """Quita conectores/artículos frecuentes para poder comparar nombres de
+    equipo que Futmondo escribe distinto según el sitio (ej. "Racing" en la
+    ficha del partido vs "Racing Santander" en la cuota, o "Atlético de
+    Madrid" vs "Atlético Madrid")."""
+    if not name:
+        return ""
+    n = str(name).lower()
+    for token in (" de ", " fc ", " cf "):
+        n = n.replace(token, " ")
+    return " ".join(n.split())
+
+
+def _matches_team(selection_name, team_name):
+    a, b = _normalize_team_name(selection_name), _normalize_team_name(team_name)
+    if not a or not b:
+        return False
+    return a == b or a in b or b in a
+
+
+def parse_match_odds(match, home_name, away_name):
+    """A partir del bloque `odds.sels` de un partido de Futmondo (varias
+    casas de apuestas por selección), calcula probabilidades implícitas de
+    victoria local/empate/visitante, promediando entre casas y quitando el
+    margen de la casa (normalizando a que sumen 1). None si no hay cuotas.
+
+    Empareja por nombre "flexible" (ver `_matches_team`) porque el nombre
+    del equipo en `homeTeam`/`awayTeam` no siempre coincide letra a letra
+    con el nombre de la selección de cuota (viene de un proveedor de
+    apuestas distinto)."""
+    sels = ((match.get("odds") or {}).get("sels")) or []
+    home_p = draw_p = away_p = None
+    for sel in sels:
+        name = sel.get("sn")
+        odds_list = [o["c"] for o in (sel.get("odds") or []) if o.get("c")]
+        if not odds_list or not name:
+            continue
+        avg_odd = sum(odds_list) / len(odds_list)
+        implied = 1 / avg_odd if avg_odd else None
+        if not implied:
+            continue
+        if name.strip().lower() == "draw":
+            draw_p = implied
+        elif _matches_team(name, home_name):
+            home_p = implied
+        elif _matches_team(name, away_name):
+            away_p = implied
+
+    total = sum(v for v in (home_p, draw_p, away_p) if v) or None
+    if not total:
+        return None
+    return {
+        "home": (home_p or 0) / total,
+        "draw": (draw_p or 0) / total,
+        "away": (away_p or 0) / total,
+    }
+
+
+def next_match_by_team(match_list_answer):
+    """A partir de la respuesta de /1/match/list, indexa por id de equipo
+    real de Futmondo (el mismo `teamId` que trae tu plantilla) el próximo
+    rival, si juega en casa, la fecha, y la probabilidad de victoria
+    implícita en las cuotas (para medir dificultad sin depender de otra
+    API)."""
+    matches = (match_list_answer or {}).get("matches") or []
+    index = {}
+    for m in matches:
+        home = m.get("homeTeam") or {}
+        away = m.get("awayTeam") or {}
+        home_id, away_id = home.get("id"), away.get("id")
+        probs = parse_match_odds(m, home.get("name"), away.get("name"))
+        if home_id:
+            index[home_id] = {
+                "rival": away.get("name"),
+                "is_home": True,
+                "date": m.get("date"),
+                "win_prob": probs["home"] if probs else None,
+                "draw_prob": probs["draw"] if probs else None,
+            }
+        if away_id:
+            index[away_id] = {
+                "rival": home.get("name"),
+                "is_home": False,
+                "date": m.get("date"),
+                "win_prob": probs["away"] if probs else None,
+                "draw_prob": probs["draw"] if probs else None,
+            }
+    return index

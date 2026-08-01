@@ -335,3 +335,35 @@ def test_player_score_penalizes_rival_in_good_form():
     vs_hot = scoring.player_score("DEL", rating=7.0, starter_rate=1.0, swing=swing_hot_rival)
     vs_cold = scoring.player_score("DEL", rating=7.0, starter_rate=1.0, swing=swing_cold_rival)
     assert vs_cold > vs_hot
+
+
+def test_fixture_factor_from_win_prob_rewards_favourites():
+    favourite = scoring.fixture_factor_from_win_prob(0.8)
+    underdog = scoring.fixture_factor_from_win_prob(0.2)
+    assert favourite > underdog
+    assert scoring.fixture_factor_from_win_prob(None) == 1.0
+
+
+def test_player_score_prefers_futmondo_form_over_api_rating():
+    swing = {"avg_goals_against_rivals": None, "avg_goals_for_rivals": None}
+    # Si hay forma real de Futmondo, manda sobre el rating de API-Football.
+    score_futmondo = scoring.player_score(
+        "DEL", rating=6.0, starter_rate=1.0, swing=swing, futmondo_form=9.0,
+    )
+    score_api_only = scoring.player_score(
+        "DEL", rating=6.0, starter_rate=1.0, swing=swing,
+    )
+    assert score_futmondo > score_api_only
+
+
+def test_player_score_uses_futmondo_win_prob_over_swing():
+    swing_would_say_hard = {"avg_goals_against_rivals": 0.3, "avg_goals_for_rivals": None}
+    # Aunque el swing de API-Football diga que es difícil, si tenemos la
+    # probabilidad real de las cuotas de Futmondo, esa manda.
+    easy_by_odds = scoring.player_score(
+        "DEL", rating=7.0, starter_rate=1.0, swing=swing_would_say_hard, futmondo_win_prob=0.9,
+    )
+    hard_by_swing_only = scoring.player_score(
+        "DEL", rating=7.0, starter_rate=1.0, swing=swing_would_say_hard,
+    )
+    assert easy_by_odds > hard_by_swing_only
