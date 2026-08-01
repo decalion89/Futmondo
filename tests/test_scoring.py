@@ -448,6 +448,42 @@ def test_is_low_confidence_fringe_prioritizes_real_titular_probability():
     assert scoring.is_low_confidence_fringe(1_000_000, has_real_data=False, titular_probability=20) is False
 
 
+def test_detect_lineup_disagreement_none_without_lineup_info():
+    assert scoring.detect_lineup_disagreement("ok", None) is None
+    assert scoring.detect_lineup_disagreement("ok", {}) is None
+
+
+def test_detect_lineup_disagreement_flags_futmondo_lagging_behind_injury_news():
+    lineup_info = {"probability": 0, "injured": True, "suspended": False, "unavailable": False}
+    warning = scoring.detect_lineup_disagreement("ok", lineup_info)
+    assert warning is not None
+    assert "no disponible" in warning.lower()
+
+
+def test_detect_lineup_disagreement_flags_low_probability_despite_futmondo_ok():
+    lineup_info = {"probability": 10, "injured": False, "suspended": False, "unavailable": False}
+    warning = scoring.detect_lineup_disagreement("ok", lineup_info)
+    assert warning is not None
+    assert "10%" in warning
+
+
+def test_detect_lineup_disagreement_flags_possible_earlier_recovery():
+    lineup_info = {"probability": 80, "injured": False, "suspended": False, "unavailable": False}
+    warning = scoring.detect_lineup_disagreement("lesionado", lineup_info)
+    assert warning is not None
+    assert "recuperándose" in warning.lower()
+
+
+def test_detect_lineup_disagreement_none_when_sources_agree():
+    # Ambas fuentes de acuerdo: disponible y alta probabilidad.
+    lineup_info = {"probability": 90, "injured": False, "suspended": False, "unavailable": False}
+    assert scoring.detect_lineup_disagreement("ok", lineup_info) is None
+
+    # Ambas fuentes de acuerdo: no disponible y con problema real marcado.
+    lineup_info2 = {"probability": 0, "injured": True, "suspended": False, "unavailable": False}
+    assert scoring.detect_lineup_disagreement("lesionado", lineup_info2) is None
+
+
 def test_implied_games_played_derives_from_points_and_average():
     assert scoring.implied_games_played(30, 6.0) == 5
     assert scoring.implied_games_played(6.5, 6.5) == 1

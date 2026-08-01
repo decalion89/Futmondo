@@ -117,17 +117,21 @@ def build_reason(r):
     de las señales que ya calculamos para él — para que la recomendación no
     sea una caja negra y puedas decidir tú con el motivo delante."""
     titular_probability = r.get("titular_probability")
+    disagreement = r.get("lineup_disagreement")
+
     if r.get("low_confidence_fringe"):
-        if titular_probability is not None:
-            return (
-                f"❓ Solo {titular_probability}% de probabilidad real de salir titular la próxima jornada "
-                "(once probable de futbolfantasy.com) — el pts/M€ que ves no es de fiar aquí"
-            )
-        return (
+        fringe_msg = (
+            f"❓ Solo {titular_probability}% de probabilidad real de salir titular la próxima jornada "
+            "(once probable de futbolfantasy.com) — el pts/M€ que ves no es de fiar aquí"
+        ) if titular_probability is not None else (
             "❓ Precio mínimo de la plataforma y cero partidos reales todavía — "
             "sin apenas señal de que vaya a tener minutos, el pts/M€ que ves no es de fiar aquí"
         )
+        return f"{disagreement}; {fringe_msg}" if disagreement else fringe_msg
+
     parts = []
+    if disagreement:
+        parts.append(disagreement)
     value = r.get("value")
     if value is not None:
         tag = " (estimado por precio, sin partidos jugados todavía)" if r.get("score_from_price") else ""
@@ -212,6 +216,9 @@ def rank_market(market_listings, benchmark_value=scoring.DEFAULT_VALUE_BENCHMARK
         # precio para decidir si es un fichaje de relleno que no va a jugar.
         lineup_info = futbolfantasy.find_player_probability(listing.get("name"), listing.get("team"))
         titular_probability = lineup_info.get("probability") if lineup_info else None
+        lineup_disagreement = scoring.detect_lineup_disagreement(
+            listing.get("futmondo_status") or "ok", lineup_info,
+        )
         # Precio mínimo de la plataforma + cero datos reales = sin apenas
         # señal de que vaya a jugar. Sin esto, dividir cualquier puntuación
         # entre un precio así de bajo dispara su pts/M€ por delante de
@@ -270,6 +277,7 @@ def rank_market(market_listings, benchmark_value=scoring.DEFAULT_VALUE_BENCHMARK
             "is_home": next_is_home,
             "win_prob": futmondo_win_prob,
             "titular_probability": titular_probability,
+            "lineup_disagreement": lineup_disagreement,
             "score": score,
             "value": value,
             "max_bid": max_bid,

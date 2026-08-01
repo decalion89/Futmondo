@@ -269,6 +269,47 @@ def is_low_confidence_fringe(price, has_real_data, titular_probability=None):
     return bool(parsed and parsed <= FUTMONDO_FLOOR_PRICE and not has_real_data)
 
 
+HIGH_TITULAR_PROBABILITY_THRESHOLD = 70  # % a partir del cual futbolfantasy lo da por titular claro
+
+
+def detect_lineup_disagreement(futmondo_status, lineup_info):
+    """Compara el estado OFICIAL de Futmondo (el que cuenta para puntos)
+    con la señal independiente de futbolfantasy.com, que se actualiza según
+    van saliendo noticias de entrenamientos/ruedas de prensa — a veces
+    antes de que Futmondo actualice su estado oficial. Cuando discrepan,
+    es una alerta temprana real: te enteras antes que sincronizando solo
+    con una fuente, antes que un rival que solo mire Futmondo.
+
+    Devuelve una frase de aviso, o None si no hay discrepancia relevante
+    (incluye el caso de no tener dato de futbolfantasy)."""
+    if not lineup_info:
+        return None
+
+    futmondo_available = futmondo_status in (None, "ok")
+    ff_red_flag = bool(lineup_info.get("injured") or lineup_info.get("suspended") or lineup_info.get("unavailable"))
+    probability = lineup_info.get("probability")
+
+    if futmondo_available and ff_red_flag:
+        return (
+            "⚠️ futbolfantasy.com ya lo marca como no disponible, pero Futmondo todavía no — "
+            "podría ser una noticia muy reciente, vigílalo antes de alinearlo o pujar por él"
+        )
+    if futmondo_available and probability is not None and probability < LOW_TITULAR_PROBABILITY_THRESHOLD:
+        return (
+            f"⚠️ futbolfantasy.com le da solo {probability}% de jugar la próxima jornada, "
+            "aunque Futmondo lo tiene como disponible"
+        )
+    if (
+        not futmondo_available and not ff_red_flag
+        and probability is not None and probability >= HIGH_TITULAR_PROBABILITY_THRESHOLD
+    ):
+        return (
+            f"ℹ️ futbolfantasy.com le da {probability}% de jugar y no lo marca con problemas — "
+            "podría estar recuperándose antes de lo que refleja Futmondo todavía"
+        )
+    return None
+
+
 def build_position_price_index(players):
     """A partir de una lista de jugadores ({position, price}), agrupa los
     precios por posición — la "materia prima" para price_percentile_base."""

@@ -36,6 +36,16 @@
     </div>
   {% endif %}
 
+  {% if lineup_alerts %}
+    <div class="section-title"><h2>🚨 Alertas tempranas</h2></div>
+    <p class="hint">Futmondo (fuente oficial) y futbolfantasy.com (periodismo real, a veces más rápido) no están de acuerdo en estos jugadores — mira antes de alinear o pujar.</p>
+    {% for p in lineup_alerts %}
+      <div class="banner">
+        <strong>{{ p.name }}</strong> ({{ p.team }}) — {{ p.lineup_disagreement }}
+      </div>
+    {% endfor %}
+  {% endif %}
+
   <div class="stat-grid">
     <div class="stat-card">
       <div class="stat-label">Jugadores</div>

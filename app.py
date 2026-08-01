@@ -105,6 +105,12 @@ def dashboard():
         r["status"] = r.get("futmondo_status") or "ok"
     _, top_sells = transfers_service.sell_candidates(players, status_cache, top=2)
 
+    # Alerta temprana: discrepancias entre el estado oficial de Futmondo y
+    # la señal independiente de futbolfantasy.com — te enteras antes de que
+    # Futmondo actualice su estado oficial, o antes que un rival que solo
+    # mire una fuente.
+    lineup_alerts = [r for r in rows if r.get("lineup_disagreement")]
+
     return render_template(
         "index.html",
         players=rows,
@@ -113,6 +119,7 @@ def dashboard():
         positions=store.POSITIONS,
         captain=captain,
         captain_enabled=captain_enabled,
+        lineup_alerts=lineup_alerts,
         top_performer=top_performer,
         total_value=total_value,
         available_count=available_count,

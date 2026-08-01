@@ -49,6 +49,23 @@ def test_build_reason_includes_real_probability_for_non_fringe_candidates():
     assert "probabilidad real" in reason.lower()
 
 
+def test_build_reason_leads_with_lineup_disagreement_when_present():
+    r = {"value": 4.5, "lineup_disagreement": "⚠️ aviso de prueba"}
+    reason = transfers.build_reason(r)
+    assert reason.startswith("⚠️")
+
+
+def test_build_reason_combines_disagreement_with_fringe_message():
+    r = {
+        "low_confidence_fringe": True,
+        "titular_probability": 5,
+        "lineup_disagreement": "⚠️ aviso de prueba",
+    }
+    reason = transfers.build_reason(r)
+    assert reason.startswith("⚠️ aviso de prueba;")
+    assert "5%" in reason
+
+
 class _FakeClient:
     team_id = "me"
 

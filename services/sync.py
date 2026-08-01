@@ -196,6 +196,11 @@ def sync_all():
             low_confidence_fringe = scoring.is_low_confidence_fringe(
                 player.get("price"), has_real_data=raw_form is not None, titular_probability=titular_probability,
             )
+            # Alerta temprana: Futmondo (fuente oficial) y futbolfantasy.com
+            # (periodismo real, más rápido a veces) pueden no estar de
+            # acuerdo todavía — eso es justo la ventana en la que te enteras
+            # antes que un rival que solo mire una fuente.
+            lineup_disagreement = scoring.detect_lineup_disagreement(status, lineup_info)
 
             score = None
             value = None
@@ -240,6 +245,7 @@ def sync_all():
                 "score_consistency": consistency,
                 "titular_probability": titular_probability,
                 "low_confidence_fringe": low_confidence_fringe,
+                "lineup_disagreement": lineup_disagreement,
                 "updated_at": datetime.datetime.utcnow().isoformat(),
             }
         except Exception as e:  # un fallo puntual no debe tumbar el resto
