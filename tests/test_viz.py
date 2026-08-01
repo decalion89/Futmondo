@@ -35,3 +35,30 @@ def test_sparkline_svg_trend_class_matches_direction():
 def test_sparkline_svg_ignores_none_values():
     spark = viz.sparkline_svg([10, None, 20, None, 30])
     assert len(spark["points"].split(" ")) == 3
+
+
+def test_sparkline_svg_coords_include_price_label_without_dates():
+    spark = viz.sparkline_svg([1_000_000, 1_200_000])
+    assert len(spark["coords"]) == 2
+    assert spark["coords"][0]["label"] == "1.000.000€"
+    assert spark["coords"][1]["label"] == "1.200.000€"
+
+
+def test_sparkline_svg_coords_include_date_when_given():
+    spark = viz.sparkline_svg([1_000_000, 1_200_000], dates=["2026-08-10", "2026-08-11"])
+    assert spark["coords"][0]["label"] == "10 ago: 1.000.000€"
+    assert spark["coords"][1]["label"] == "11 ago: 1.200.000€"
+
+
+def test_sparkline_svg_dates_align_to_last_values_when_mismatched_length():
+    # Si vienen más fechas que precios (no debería pasar, pero por seguridad),
+    # nos quedamos con las últimas N fechas para que sigan alineadas al final.
+    spark = viz.sparkline_svg([1_000_000, 1_200_000], dates=["2026-08-08", "2026-08-10", "2026-08-11"])
+    assert spark["coords"][0]["label"] == "10 ago: 1.000.000€"
+    assert spark["coords"][1]["label"] == "11 ago: 1.200.000€"
+
+
+def test_format_date_handles_bad_input_gracefully():
+    assert viz._format_date(None) is None
+    assert viz._format_date("not-a-date") == "not-a-date"
+    assert viz._format_date("2026-01-05T00:00:00.000Z") == "5 ene"

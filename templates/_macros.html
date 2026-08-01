@@ -90,9 +90,12 @@
 
 {% macro sparkline(spark) %}
   {% if spark %}
-  <svg width="{{ spark.width }}" height="{{ spark.height }}" viewBox="0 0 {{ spark.width }} {{ spark.height }}" class="{{ spark.trend_class }}" style="display:block;" aria-hidden="true">
+  <svg width="{{ spark.width }}" height="{{ spark.height }}" viewBox="0 0 {{ spark.width }} {{ spark.height }}" class="sparkline {{ spark.trend_class }}" style="display:block; overflow:visible;">
     <polyline points="{{ spark.points }}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-    <circle cx="{{ spark.last_x }}" cy="{{ spark.last_y }}" r="2.5" fill="currentColor"/>
+    {% for c in spark.coords[:-1] %}
+    <circle cx="{{ c.x }}" cy="{{ c.y }}" r="4" fill="transparent" class="spark-hit"><title>{{ c.label }}</title></circle>
+    {% endfor %}
+    <circle cx="{{ spark.last_x }}" cy="{{ spark.last_y }}" r="2.5" fill="currentColor" class="spark-end"><title>{{ spark.coords[-1].label }}</title></circle>
   </svg>
   {% else %}—{% endif %}
 {% endmacro %}

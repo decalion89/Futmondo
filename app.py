@@ -139,7 +139,10 @@ def market():
                 if player_id:
                     try:
                         history = get_price_history(client, player_id)
-                        p["sparkline"] = viz.sparkline_svg([h["price"] for h in history.get("history", [])])
+                        p["sparkline"] = viz.sparkline_svg(
+                            [h["price"] for h in history.get("history", [])],
+                            dates=[h["date"] for h in history.get("history", [])],
+                        )
                         p["price_momentum"] = scoring.price_momentum_flag(history.get("history", []))
                     except FutmondoError:
                         p["sparkline"] = None
@@ -176,7 +179,10 @@ def transfers():
                 continue
             try:
                 history = get_price_history(futmondo_client, player_id)
-                r["sparkline"] = viz.sparkline_svg([h["price"] for h in history.get("history", [])])
+                r["sparkline"] = viz.sparkline_svg(
+                    [h["price"] for h in history.get("history", [])],
+                    dates=[h["date"] for h in history.get("history", [])],
+                )
                 r["price_momentum"] = scoring.price_momentum_flag(history.get("history", []))
                 r["reason"] = transfers_service.build_reason(r)
             except FutmondoError:

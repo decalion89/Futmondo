@@ -205,6 +205,11 @@ a { color: var(--primary-dark); }
   padding: 0.7rem 0.9rem;
   box-shadow: var(--shadow);
   flex-wrap: wrap;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+.player-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
 }
 .player-card.status-ok { border-left-color: var(--primary); }
 .player-card.status-duda { border-left-color: var(--warning); }
@@ -325,6 +330,11 @@ tr.status-duda td { background: var(--warning-tint); }
 .tag-warn { color: var(--warning); font-size: 0.8rem; font-weight: 600; }
 .trend-up { color: var(--primary-dark); font-weight: 700; }
 .trend-down { color: var(--danger); font-weight: 700; }
+
+.sparkline .spark-hit { cursor: default; transition: opacity 0.1s ease; }
+.sparkline .spark-hit:hover { fill: currentColor; opacity: 0.2; }
+.sparkline .spark-end { transition: r 0.12s ease; }
+.sparkline:hover .spark-end { r: 3.5; }
 
 .empty-state {
   text-align: center;
