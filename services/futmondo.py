@@ -76,6 +76,14 @@ class FutmondoClient:
         """Mercado de fichajes actual de tu liga."""
         return self._post("/1/market/players", {"type": "market"})
 
+    def get_my_market_listings(self):
+        """Jugadores que TÚ tienes puestos en venta ahora mismo — a
+        diferencia de `get_market()` (todo el mercado, sin ver quién puja
+        cuánto en jugadores ajenos), aquí sí ves el detalle de pujas
+        recibidas en tus propias ventas, porque eres el vendedor.
+        Confirmado en `/1/market/myplayers` el 2026-08-02."""
+        return self._post("/1/market/myplayers", {"type": "market"})
+
     def get_player_summary(self, player_id):
         """Ficha completa de un jugador: incluye `prices`, su historial de
         precio día a día (no solo la variación puntual del roster/mercado)
@@ -265,6 +273,36 @@ def normalize_roster(raw):
             # es mejor que cualquier histórico que construyamos nosotros
             # desde cero.
             "futmondo_fitness_history": average.get("fitness"),
+        })
+    return normalized
+
+
+def normalize_my_listings(raw):
+    """De /1/market/myplayers: tus jugadores puestos en venta ahora mismo,
+    con el detalle COMPLETO de las pujas recibidas hasta ahora (quién y
+    cuánto) — eres el vendedor, así que Futmondo sí te lo enseña, a
+    diferencia del mercado abierto donde no ves pujas ajenas. Misma forma
+    de `bids` que la rueda de prensa (`u.name`/`bid`), sin confirmar
+    todavía con un ejemplo real no vacío (el 2026-08-02 no había pujas
+    activas en ninguna venta) — se trata con cuidado por si acaso."""
+    listings = raw if isinstance(raw, list) else []
+    normalized = []
+    for p in listings:
+        if not isinstance(p, dict):
+            continue
+        bids = [
+            {"bidder": (b.get("u") or {}).get("name"), "amount": b.get("bid")}
+            for b in (p.get("bids") or []) if isinstance(b, dict)
+        ]
+        normalized.append({
+            "name": p.get("name") or "Desconocido",
+            "position": _map_position(p.get("role")) or "?",
+            "team": p.get("team") or "?",
+            "current_value": p.get("value"),
+            "asking_price": p.get("price"),
+            "expiration": p.get("expirationDate"),
+            "bids": bids,
+            "highest_bid": max((b["amount"] for b in bids if b.get("amount")), default=None),
         })
     return normalized
 

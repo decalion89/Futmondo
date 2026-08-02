@@ -12,6 +12,7 @@ from services.api_football import ApiFootballClient
 from services.futmondo import (
     FutmondoClient, FutmondoError, normalize_roster, normalize_league_teams,
     next_match_by_team, collect_known_players, normalize_pressroom, get_price_history,
+    normalize_my_listings,
 )
 from services import transfers as transfers_service
 from services import viz
@@ -114,9 +115,20 @@ def dashboard():
     # mire una fuente.
     lineup_alerts = [r for r in rows if r.get("lineup_disagreement")]
 
+    # Tus ventas activas ahora mismo, con las pujas recibidas — para no
+    # tener que salir de aquí a comprobar en Futmondo si ya han pujado por
+    # algo que pusiste en venta.
+    my_listings = []
+    if futmondo_client.enabled:
+        try:
+            my_listings = normalize_my_listings(futmondo_client.get_my_market_listings())
+        except FutmondoError:
+            my_listings = []
+
     return render_template(
         "index.html",
         players=rows,
+        my_listings=my_listings,
         api_enabled=api_enabled,
         futmondo_enabled=futmondo_enabled,
         positions=store.POSITIONS,

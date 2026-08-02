@@ -55,6 +55,41 @@ def test_normalize_roster_handles_string_team_not_dict():
     assert result[0]["position"] == "POR"
 
 
+def test_normalize_my_listings_maps_price_and_empty_bids():
+    # Forma real confirmada el 2026-08-02 en /1/market/myplayers.
+    raw = [{
+        "name": "Rodrygo", "role": "delantero", "team": "Real Madrid",
+        "value": 16960845, "price": 20000000,
+        "expirationDate": "2026-08-03T09:15:09.129Z", "bids": [],
+    }]
+    result = futmondo.normalize_my_listings(raw)
+    assert result[0]["name"] == "Rodrygo"
+    assert result[0]["position"] == "DEL"
+    assert result[0]["current_value"] == 16960845
+    assert result[0]["asking_price"] == 20000000
+    assert result[0]["bids"] == []
+    assert result[0]["highest_bid"] is None
+
+
+def test_normalize_my_listings_extracts_bid_detail_and_highest_bid():
+    raw = [{
+        "name": "Gavi", "role": "centrocampista", "team": "Barcelona",
+        "value": 12181871, "price": 17000000,
+        "bids": [{"u": {"name": "R.C.G."}, "bid": 15000000}, {"u": {"name": "Snoopy"}, "bid": 16500000}],
+    }]
+    result = futmondo.normalize_my_listings(raw)
+    assert result[0]["bids"] == [
+        {"bidder": "R.C.G.", "amount": 15000000},
+        {"bidder": "Snoopy", "amount": 16500000},
+    ]
+    assert result[0]["highest_bid"] == 16500000
+
+
+def test_normalize_my_listings_empty_without_data():
+    assert futmondo.normalize_my_listings(None) == []
+    assert futmondo.normalize_my_listings([]) == []
+
+
 def test_map_status_covers_real_values_seen_2026_08_02():
     # Confirmado contra /5/league/championshipplayers real: "redcard" existe
     # como valor de status (tarjeta roja = sancionado el próximo partido) y

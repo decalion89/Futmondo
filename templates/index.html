@@ -46,6 +46,21 @@
     {% endfor %}
   {% endif %}
 
+  {% if my_listings %}
+    <div class="section-title"><h2>💸 Tus ventas activas</h2></div>
+    <p class="hint">Jugadores que tienes puestos en venta ahora mismo, con las pujas recibidas hasta el momento.</p>
+    {% for p in my_listings %}
+      <div class="banner">
+        <strong>{{ p.name }}</strong> ({{ p.team }}) — a la venta por {{ "{:,.0f}".format(p.asking_price).replace(",", ".") if p.asking_price else '—' }}€
+        {% if p.bids %}
+          · {{ p.bids|length }} puja(s), la más alta {{ "{:,.0f}".format(p.highest_bid).replace(",", ".") if p.highest_bid else '—' }}€
+        {% else %}
+          · sin pujas todavía
+        {% endif %}
+      </div>
+    {% endfor %}
+  {% endif %}
+
   <div class="stat-grid">
     <div class="stat-card">
       <div class="stat-label">Jugadores</div>
