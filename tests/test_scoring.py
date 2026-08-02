@@ -448,9 +448,24 @@ def test_is_low_confidence_fringe_prioritizes_real_titular_probability():
     assert scoring.is_low_confidence_fringe(1_000_000, has_real_data=False, titular_probability=20) is False
 
 
+def test_is_low_confidence_fringe_flags_not_in_contention_regardless_of_price():
+    # No estar en la lista de futbolfantasy.com (equipo conocido, jugador
+    # ausente) es señal real más fuerte que cualquier proxy de precio —
+    # manda incluso con precio alto.
+    assert scoring.is_low_confidence_fringe(20_000_000, has_real_data=True, not_in_contention=True) is True
+    assert scoring.is_low_confidence_fringe(6_500_000, has_real_data=False, not_in_contention=True) is True
+
+
 def test_detect_lineup_disagreement_none_without_lineup_info():
     assert scoring.detect_lineup_disagreement("ok", None) is None
     assert scoring.detect_lineup_disagreement("ok", {}) is None
+
+
+def test_detect_lineup_disagreement_flags_not_in_contention_despite_futmondo_ok():
+    lineup_info = {"probability": None, "not_in_contention": True}
+    warning = scoring.detect_lineup_disagreement("ok", lineup_info)
+    assert warning is not None
+    assert "ni siquiera lo incluye" in warning.lower()
 
 
 def test_detect_lineup_disagreement_flags_futmondo_lagging_behind_injury_news():

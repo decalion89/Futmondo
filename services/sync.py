@@ -219,8 +219,10 @@ def sync_all():
             # simplemente no hay dato y seguimos con el resto de señales.
             lineup_info = futbolfantasy.find_player_probability(player["name"], player.get("team"))
             titular_probability = lineup_info.get("probability") if lineup_info else None
+            not_in_contention = bool(lineup_info and lineup_info.get("not_in_contention"))
             low_confidence_fringe = scoring.is_low_confidence_fringe(
                 player.get("price"), has_real_data=raw_form is not None, titular_probability=titular_probability,
+                not_in_contention=not_in_contention,
             )
             # Alerta temprana: Futmondo (fuente oficial) y futbolfantasy.com
             # (periodismo real, más rápido a veces) pueden no estar de
@@ -289,6 +291,7 @@ def sync_all():
                 "value": value,
                 "score_consistency": consistency,
                 "titular_probability": titular_probability,
+                "not_in_contention": not_in_contention,
                 "low_confidence_fringe": low_confidence_fringe,
                 "lineup_disagreement": lineup_disagreement,
                 "transfer_rumor": transfer_rumor,

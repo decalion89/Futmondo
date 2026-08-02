@@ -57,6 +57,13 @@ def test_build_reason_warns_before_anything_else_for_low_confidence_fringe():
     assert "99.0 pts/m€" not in reason.lower()
 
 
+def test_build_reason_fringe_message_for_not_in_contention():
+    r = {"value": 20.0, "low_confidence_fringe": True, "not_in_contention": True}
+    reason = transfers.build_reason(r)
+    assert "ni siquiera lo incluye" in reason.lower()
+    assert "20.0 pts/m€" not in reason.lower()
+
+
 def test_build_reason_fringe_message_cites_real_probability_when_available():
     # Con dato real de once probable, el motivo debe citar el porcentaje
     # real en vez del genérico "precio mínimo" (más preciso y verificable).

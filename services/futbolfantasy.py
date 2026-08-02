@@ -387,9 +387,29 @@ def _match_by_slug(index, player_name):
 
 
 def find_player_probability(player_name, team_name):
-    """Probabilidad de titularidad de un jugador concreto. None si no se
-    encuentra."""
-    return _match_by_slug(get_team_page_data(team_name)["lineup"], player_name)
+    """Probabilidad de titularidad de un jugador concreto.
+
+    Devuelve None solo cuando de verdad no hay información: el equipo no
+    se reconoce o falló la petición — ahí sí hay que verificar a mano.
+
+    Si el equipo SÍ se resolvió pero el jugador no aparece en la lista de
+    futbolfantasy.com, NO es lo mismo que "no hay dato": esa web solo
+    publica probabilidad para quienes están en la pelea real por la
+    titularidad (típicamente 20-22 jugadores del primer equipo). Que
+    alguien no esté ahí es en sí mismo una señal real — normalmente un
+    suplente lejano que ni se plantean alinear (confirmado el 2026-08-02:
+    Diego Conde, portero suplente del Betis, no aparece en su ficha de
+    equipo NI en su ficha individual, mientras que el portero titular sí
+    trae probabilidad). Se devuelve `{"probability": None,
+    "not_in_contention": True}` para poder avisar de esto de forma
+    distinta a un genérico "sin dato"."""
+    lineup = get_team_page_data(team_name)["lineup"]
+    if not lineup:
+        return None
+    match = _match_by_slug(lineup, player_name)
+    if match:
+        return match
+    return {"probability": None, "not_in_contention": True}
 
 
 def find_player_injury_detail(player_name, team_name):
