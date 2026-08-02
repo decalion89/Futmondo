@@ -13,6 +13,7 @@ from services.api_football import ApiFootballClient, ApiFootballError
 from services.futmondo import (
     FutmondoError, normalize_roster, normalize_league_teams, next_match_by_team,
     collect_known_players, normalize_championship_players, real_team_names_by_id,
+    get_lastseasons_prior, LASTSEASONS_PRIOR_TTL,
 )
 
 # Mínimo de jugadores disponibles en cada posición para poder completar
@@ -157,7 +158,12 @@ def build_reason(r):
 
     value = r.get("value")
     if value is not None:
-        tag = " (estimado por precio, sin partidos jugados todavía)" if r.get("score_from_price") else ""
+        if r.get("score_from_price") and r.get("preseason_base_source") == "historical":
+            tag = f" (estimado por su temporada {r.get('historical_season')}: {r.get('historical_games')} partidos)"
+        elif r.get("score_from_price"):
+            tag = " (estimado por precio, sin partidos jugados todavía)"
+        else:
+            tag = ""
         parts.append(f"{value} pts/M€{tag}")
 
     # 3. ¿Dónde saca los puntos? Portería a cero para defensas/porteros,
@@ -201,14 +207,50 @@ def build_reason(r):
     return "; ".join(parts).capitalize()
 
 
+MAX_NEW_HISTORICAL_LOOKUPS = 25  # tope de llamadas NUEVAS a lastseasons por carga de página
+
+
+def _historical_priors(client, listings, max_new_lookups=MAX_NEW_HISTORICAL_LOOKUPS):
+    """Precalcula, para los candidatos con precio real (no de relleno al
+    mínimo de la plataforma), la media real de la temporada anterior en el
+    modo de puntuación de tu liga (`presstats`) — mejor prior que el precio
+    en pretemporada. Limita cuántas llamadas NUEVAS a Futmondo se hacen en
+    esta carga de página: los jugadores ya cacheados (una semana, ver
+    LASTSEASONS_PRIOR_TTL) no cuentan para el tope, así que tras la primera
+    vez que se ve a cada jugador esto es instantáneo. Sin este límite, un
+    escaneo de clausulazo con ~130 candidatos rivales podría repetir el
+    mismo timeout que tuvimos con las llamadas por-rival, cada vez que el
+    disco efímero de Render se reinicia y vacía la caché."""
+    if client is None or not getattr(client, "enabled", False):
+        return {}
+    priors = {}
+    new_lookups = 0
+    for listing in listings:
+        player_id = listing.get("futmondo_player_id")
+        price = scoring.parse_price(listing.get("price"))
+        if not player_id or not price or price <= scoring.FUTMONDO_FLOOR_PRICE:
+            continue
+        hit, _ = cache.peek(f"lastseasons_prior:{player_id}", ttl=LASTSEASONS_PRIOR_TTL)
+        if not hit:
+            if new_lookups >= max_new_lookups:
+                continue
+            new_lookups += 1
+        priors[player_id] = get_lastseasons_prior(client, player_id)
+    return priors
+
+
 def rank_market(market_listings, benchmark_value=scoring.DEFAULT_VALUE_BENCHMARK, squad=None,
-                 next_match_index=None, real_budget_cap=None, position_price_index=None):
+                 next_match_index=None, real_budget_cap=None, position_price_index=None, client=None):
     """Puntúa cada jugador del mercado, lo ordena por puntos-por-millón
     (mejor relación calidad/precio primero) y calcula hasta qué puja
     máxima compensaría pagar. `real_budget_cap` (si se pasa) es el tope
     físico real de tu liga (fondos + % configurado) — manda sobre el tope
     por rentabilidad si es más bajo. También marca los candidatos que no
-    podrías fichar por el límite de jugadores del mismo equipo real."""
+    podrías fichar por el límite de jugadores del mismo equipo real.
+
+    `client` (opcional): si se pasa, enriquece la base de pretemporada de
+    cada candidato con su rendimiento REAL de la temporada anterior (ver
+    `_historical_priors`) en vez de depender solo del precio."""
     api_client = ApiFootballClient()
     api_available = api_client.enabled
     errors = []
@@ -223,6 +265,7 @@ def rank_market(market_listings, benchmark_value=scoring.DEFAULT_VALUE_BENCHMARK
     team_counts = _team_counts(squad or [])
     max_same_team = _max_same_team()
     next_match_index = next_match_index or {}
+    historical_priors = _historical_priors(client, market_listings)
 
     ranked = []
     for listing in market_listings:
@@ -230,7 +273,13 @@ def rank_market(market_listings, benchmark_value=scoring.DEFAULT_VALUE_BENCHMARK
         raw_form = _clean_futmondo_form(listing.get("futmondo_average_last_five")) \
             or _clean_futmondo_form(listing.get("futmondo_average"))
         games_played = scoring.implied_games_played(listing.get("futmondo_points"), listing.get("futmondo_average"))
-        preseason_base = scoring.price_percentile_base(listing.get("price"), position, position_price_index)
+        historical = historical_priors.get(listing.get("futmondo_player_id"))
+        if historical:
+            preseason_base = historical["average"]
+            preseason_base_source = "historical"
+        else:
+            preseason_base = scoring.price_percentile_base(listing.get("price"), position, position_price_index)
+            preseason_base_source = "price" if preseason_base is not None else None
         score_from_price = raw_form is None
         if score_from_price:
             futmondo_form = preseason_base
@@ -311,6 +360,9 @@ def rank_market(market_listings, benchmark_value=scoring.DEFAULT_VALUE_BENCHMARK
             "worth_bidding_more": worth_bidding_more,
             "team_limit_reached": team_limit_reached,
             "score_from_price": score_from_price,
+            "preseason_base_source": preseason_base_source if score_from_price else None,
+            "historical_games": historical["games"] if historical else None,
+            "historical_season": historical["season"] if historical else None,
             "score_low_sample": score_low_sample,
             "implied_games_played": games_played,
             "low_confidence_fringe": low_confidence_fringe,
@@ -451,6 +503,7 @@ def full_market_ranking(client, squad, status_cache):
     if listings:
         ranked, rank_errors = rank_market(
             listings, benchmark_value, squad, next_match_index, real_budget_cap, position_price_index,
+            client=client,
         )
         errors.extend(rank_errors)
 
@@ -568,6 +621,7 @@ def scan_rival_targets(
 
     ranked, errors = rank_market(
         rival_players, benchmark_value, squad, next_match_index, real_budget_cap, position_price_index,
+        client=client,
     )
 
     plausible_pct = clause_increase_pct is not None and 0 <= clause_increase_pct <= 300

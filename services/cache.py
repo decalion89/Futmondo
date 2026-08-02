@@ -43,3 +43,14 @@ def get_or_set(key, fn, ttl=DEFAULT_TTL):
     cache[key] = {"ts": time.time(), "value": value}
     _save(cache)
     return value
+
+
+def peek(key, ttl=DEFAULT_TTL):
+    """Como get_or_set pero sin ejecutar `fn()` si no hay caché vigente —
+    para poder saber de antemano si conseguir un dato costaría una llamada
+    nueva antes de decidir si hay presupuesto para ella. Devuelve
+    (True, valor) si hay acierto de caché, (False, None) si no."""
+    entry = _load().get(key)
+    if entry and (time.time() - entry["ts"]) < ttl:
+        return True, entry["value"]
+    return False, None

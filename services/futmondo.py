@@ -459,6 +459,57 @@ def collect_known_players(client):
     return cache.get_or_set(key, _fetch, ttl=cache.DEFAULT_TTL)
 
 
+# Modo de puntuación real de tu liga, de los 9 que trae /2/player/lastseasons
+# (press/presstats/picas/ff/mini/goals/stats/as/marca/ss/tdj/fs) — confirmado
+# el 2026-08-02 cruzando un dato real del usuario (Dimitrievski: 115,1 puntos
+# en 20 partidos, media local 5,3/visitante 6,2 en 2025/2026) contra los
+# números crudos de cada modo: solo `presstats` coincidió exactamente
+# (115.1/20, 52.8/10=5.28, 62.3/10=6.23).
+LASTSEASONS_SCORING_MODE = "presstats"
+LASTSEASONS_PRIOR_TTL = 7 * 24 * 3600  # una semana: temporadas pasadas no cambian, solo evita repetir la llamada
+
+
+def normalize_lastseasons_prior(raw, mode=LASTSEASONS_SCORING_MODE):
+    """De /2/player/lastseasons: media real de puntos por partido de la
+    temporada anterior más reciente, en el modo de puntuación real de tu
+    liga. Es un prior mucho mejor que el precio para pretemporada — refleja
+    rendimiento real, no solo reputación de mercado. None si el jugador no
+    tiene temporadas anteriores registradas (debut) o la más reciente tiene
+    0 partidos jugados."""
+    seasons = (raw or {}).get("seasons") or []
+    if not seasons:
+        return None
+    latest = seasons[0]
+    for entry in latest.get("points") or []:
+        if entry.get("mode") != mode:
+            continue
+        totals = entry.get("t") or {}
+        games, points = totals.get("games"), totals.get("p")
+        if not games:
+            return None
+        return {
+            "average": round(points / games, 2),
+            "games": games,
+            "season": (latest.get("league") or {}).get("season"),
+        }
+    return None
+
+
+def get_lastseasons_prior(client, player_id):
+    """Cachea individualmente (temporadas pasadas no cambian nunca) la
+    media real de la temporada anterior de un jugador, para no repetir la
+    llamada en cada carga de página — ver `services.transfers._historical_priors`
+    para cómo se limita cuántas llamadas NUEVAS se hacen por request."""
+    def _fetch():
+        try:
+            raw = client.get_player_lastseasons(player_id)
+        except FutmondoError:
+            return None
+        return normalize_lastseasons_prior(raw)
+
+    return cache.get_or_set(f"lastseasons_prior:{player_id}", _fetch, ttl=LASTSEASONS_PRIOR_TTL)
+
+
 def normalize_pressroom(raw):
     """Actividad reciente del mercado de tu liga (de /1/locker/pressroom):
     quién ha puesto a quién en venta, a qué precio, y cuántas pujas lleva."""

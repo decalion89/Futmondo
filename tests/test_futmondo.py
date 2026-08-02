@@ -108,6 +108,60 @@ def test_normalize_championship_players_maps_ownership_and_team_name():
     assert free["team"] == "Celta de Vigo"
 
 
+def _lastseasons_entry(mode, games, points, season="2025/2026"):
+    return {
+        "league": {"season": season},
+        "points": [{"t": {"games": games, "p": points}, "mode": mode}],
+    }
+
+
+def test_normalize_lastseasons_prior_picks_presstats_mode():
+    # Forma real confirmada el 2026-08-02 con Dimitrievski: 115.1 puntos en
+    # 20 partidos en modo presstats — coincidió exacto con el dato real que
+    # dio el usuario, ningún otro de los 9 modos cuadraba.
+    raw = {
+        "seasons": [
+            {
+                "league": {"season": "2025/2026"},
+                "points": [
+                    {"t": {"games": 20, "p": 101}, "mode": "press"},
+                    {"t": {"games": 20, "p": 115.1}, "mode": "presstats"},
+                    {"t": {"games": 20, "p": 88}, "mode": "picas"},
+                ],
+            },
+        ]
+    }
+    prior = futmondo.normalize_lastseasons_prior(raw)
+    assert prior == {"average": 5.75, "games": 20, "season": "2025/2026"}
+
+
+def test_normalize_lastseasons_prior_none_without_seasons():
+    assert futmondo.normalize_lastseasons_prior({}) is None
+    assert futmondo.normalize_lastseasons_prior({"seasons": []}) is None
+
+
+def test_normalize_lastseasons_prior_none_when_zero_games():
+    raw = {"seasons": [_lastseasons_entry("presstats", games=0, points=0)]}
+    assert futmondo.normalize_lastseasons_prior(raw) is None
+
+
+def test_normalize_lastseasons_prior_none_when_mode_missing():
+    raw = {"seasons": [_lastseasons_entry("press", games=20, points=101)]}
+    assert futmondo.normalize_lastseasons_prior(raw) is None
+
+
+def test_normalize_lastseasons_prior_uses_most_recent_season_only():
+    raw = {
+        "seasons": [
+            _lastseasons_entry("presstats", games=20, points=115.1, season="2025/2026"),
+            _lastseasons_entry("presstats", games=37, points=175.9, season="2023/2024"),
+        ]
+    }
+    prior = futmondo.normalize_lastseasons_prior(raw)
+    assert prior["season"] == "2025/2026"
+    assert prior["games"] == 20
+
+
 def test_normalize_championship_players_falls_back_to_team_id_without_name_map():
     raw = {"players": [{"id": "p1", "name": "X", "role": "delantero", "value": 1_000_000, "teamId": "unknown-id"}]}
     result = futmondo.normalize_championship_players(raw)

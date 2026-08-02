@@ -11,7 +11,9 @@ funcionando solo con Futmondo.
 """
 import datetime
 from services import store, scoring, futbolfantasy
-from services.futmondo import FutmondoClient, FutmondoError, next_match_by_team, collect_known_players
+from services.futmondo import (
+    FutmondoClient, FutmondoError, next_match_by_team, collect_known_players, get_lastseasons_prior,
+)
 from services.api_football import ApiFootballClient, ApiFootballError
 
 
@@ -171,9 +173,26 @@ def sync_all():
             games_played = scoring.implied_games_played(
                 player.get("futmondo_points"), player.get("futmondo_average"),
             )
-            preseason_base = scoring.price_percentile_base(
-                player.get("price"), player["position"], position_price_index,
-            )
+            # Rendimiento REAL de la temporada anterior (modo `presstats`,
+            # confirmado el 2026-08-02) como base de pretemporada — mucho
+            # mejor prior que el precio cuando existe. Tu plantilla es
+            # pequeña (15-18 jugadores), así que se consulta siempre, sin el
+            # tope de llamadas nuevas que sí hace falta para listas grandes
+            # (mercado/rivales, ver services.transfers._historical_priors).
+            historical = None
+            if futmondo_client.enabled:
+                player_id = player.get("futmondo_player_id")
+                own_price = scoring.parse_price(player.get("price"))
+                if player_id and own_price and own_price > scoring.FUTMONDO_FLOOR_PRICE:
+                    historical = get_lastseasons_prior(futmondo_client, player_id)
+            if historical:
+                preseason_base = historical["average"]
+                preseason_base_source = "historical"
+            else:
+                preseason_base = scoring.price_percentile_base(
+                    player.get("price"), player["position"], position_price_index,
+                )
+                preseason_base_source = "price" if preseason_base is not None else None
             if raw_form is None:
                 # Sin ni un partido jugado todavía: el precio es la única
                 # señal que tenemos.
@@ -247,6 +266,9 @@ def sync_all():
                 "rating": rating,
                 "futmondo_form": futmondo_form,
                 "score_from_price": raw_form is None,
+                "preseason_base_source": preseason_base_source if raw_form is None else None,
+                "historical_games": historical["games"] if historical else None,
+                "historical_season": historical["season"] if historical else None,
                 "score_low_sample": score_low_sample,
                 "implied_games_played": games_played,
                 "congestion_count": congestion.get("count"),

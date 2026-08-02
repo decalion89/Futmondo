@@ -85,6 +85,17 @@ def test_build_reason_leads_with_lineup_disagreement_when_present():
     assert reason.startswith("⚠️")
 
 
+def test_build_reason_cites_historical_season_over_generic_price_tag():
+    r = {
+        "value": 5.5, "score_from_price": True, "preseason_base_source": "historical",
+        "historical_season": "2025/2026", "historical_games": 20,
+    }
+    reason = transfers.build_reason(r)
+    assert "2025/2026" in reason
+    assert "20 partidos" in reason
+    assert "estimado por precio" not in reason.lower()
+
+
 def test_build_reason_combines_disagreement_with_fringe_message():
     r = {
         "low_confidence_fringe": True,
@@ -434,3 +445,93 @@ def test_build_transfer_plan_skips_candidates_without_parseable_cost():
     clausulazo = [{"name": "SinClausula", "clause_estimate": None, "value": 9.0}]
     plan = transfers.build_transfer_plan([], [], clausulazo, available_funds=10_000_000)
     assert plan == []
+
+
+class _LastseasonsFakeClient:
+    """Cliente de mentira que solo sabe responder a get_player_lastseasons,
+    con la forma real confirmada el 2026-08-02 (temporadas más reciente
+    primero, modo presstats)."""
+    enabled = True
+    team_id = "me"
+
+    def __init__(self, seasons_by_player_id):
+        self._data = seasons_by_player_id
+
+    def get_player_lastseasons(self, player_id):
+        return self._data.get(player_id, {"seasons": []})
+
+
+def _lastseasons_raw(games, points, season="2025/2026"):
+    return {"seasons": [{"league": {"season": season}, "points": [{"t": {"games": games, "p": points}, "mode": "presstats"}]}]}
+
+
+def test_historical_priors_skips_floor_price_players(tmp_path, monkeypatch):
+    monkeypatch.setattr(cache, "CACHE_FILE", str(tmp_path / "cache.json"))
+    client = _LastseasonsFakeClient({"p1": _lastseasons_raw(20, 115.1)})
+    listings = [{"futmondo_player_id": "p1", "price": 1_000_000}]  # precio mínimo -> se salta
+    assert transfers._historical_priors(client, listings) == {}
+
+
+def test_historical_priors_skips_without_enabled_client(tmp_path, monkeypatch):
+    monkeypatch.setattr(cache, "CACHE_FILE", str(tmp_path / "cache.json"))
+    listings = [{"futmondo_player_id": "p1", "price": 5_000_000}]
+    assert transfers._historical_priors(None, listings) == {}
+
+
+def test_historical_priors_fetches_for_real_priced_candidates(tmp_path, monkeypatch):
+    monkeypatch.setattr(cache, "CACHE_FILE", str(tmp_path / "cache.json"))
+    client = _LastseasonsFakeClient({"p1": _lastseasons_raw(20, 115.1)})
+    listings = [{"futmondo_player_id": "p1", "price": 5_000_000}]
+    priors = transfers._historical_priors(client, listings)
+    assert priors["p1"]["average"] == 5.75
+    assert priors["p1"]["games"] == 20
+
+
+def test_historical_priors_respects_new_lookup_budget(tmp_path, monkeypatch):
+    monkeypatch.setattr(cache, "CACHE_FILE", str(tmp_path / "cache.json"))
+    data = {f"p{i}": _lastseasons_raw(10, 50) for i in range(5)}
+    client = _LastseasonsFakeClient(data)
+    listings = [{"futmondo_player_id": f"p{i}", "price": 5_000_000} for i in range(5)]
+    priors = transfers._historical_priors(client, listings, max_new_lookups=2)
+    # Con el tope a 2, solo las 2 primeras se consultan de verdad — el resto
+    # se queda sin dato esta vez, no revienta el request entero.
+    assert len(priors) == 2
+
+
+def test_historical_priors_cached_entries_dont_count_against_budget(tmp_path, monkeypatch):
+    monkeypatch.setattr(cache, "CACHE_FILE", str(tmp_path / "cache.json"))
+    data = {f"p{i}": _lastseasons_raw(10, 50) for i in range(3)}
+    client = _LastseasonsFakeClient(data)
+    listings = [{"futmondo_player_id": f"p{i}", "price": 5_000_000} for i in range(3)]
+    transfers.get_lastseasons_prior(client, "p0")  # precalienta p0 fuera del tope
+    priors = transfers._historical_priors(client, listings, max_new_lookups=1)
+    # p0 ya estaba en caché (no cuenta para el tope) + 1 nueva (p1) = 2; p2 se queda fuera.
+    assert set(priors.keys()) == {"p0", "p1"}
+
+
+def test_rank_market_uses_historical_prior_as_preseason_base(tmp_path, monkeypatch):
+    monkeypatch.setattr(cache, "CACHE_FILE", str(tmp_path / "cache.json"))
+    client = _LastseasonsFakeClient({"p1": _lastseasons_raw(20, 115.1)})
+    listing = {
+        "name": "SinDatosEstaTemporada", "position": "DEL", "team": "Equipo Ficticio",
+        "price": 5_000_000, "futmondo_player_id": "p1",
+        "futmondo_average": 0, "futmondo_average_last_five": 0, "futmondo_points": 0,
+    }
+    ranked, _ = transfers.rank_market([listing], client=client)
+    assert ranked[0]["preseason_base_source"] == "historical"
+    assert ranked[0]["historical_games"] == 20
+    assert ranked[0]["historical_season"] == "2025/2026"
+    assert ranked[0]["score_from_price"] is True
+
+
+def test_rank_market_falls_back_to_price_base_without_historical_data(tmp_path, monkeypatch):
+    monkeypatch.setattr(cache, "CACHE_FILE", str(tmp_path / "cache.json"))
+    client = _LastseasonsFakeClient({})  # nadie tiene histórico (debut)
+    listing = {
+        "name": "Debutante", "position": "DEL", "team": "Equipo Ficticio",
+        "price": 5_000_000, "futmondo_player_id": "p_nuevo",
+        "futmondo_average": 0, "futmondo_average_last_five": 0, "futmondo_points": 0,
+    }
+    ranked, _ = transfers.rank_market([listing], client=client, position_price_index={"DEL": [5_000_000]})
+    assert ranked[0]["preseason_base_source"] == "price"
+    assert ranked[0]["historical_games"] is None
