@@ -265,3 +265,36 @@ def test_find_player_market_momentum_none_below_thresholds(monkeypatch):
 def test_find_player_market_momentum_none_when_not_found(monkeypatch):
     monkeypatch.setattr(ff, "get_futmondo_market_data", lambda: {})
     assert ff.find_player_market_momentum("Nadie") is None
+
+
+def _set_piece_row(name, penaltis=0, faltas_directas=0, corners=0):
+    """Reproduce la forma real confirmada el 2026-08-02 de una fila de
+    /analytics/balon-parado/jugadores."""
+    return (
+        f'<tr class="elemento_jugador" data-nombre="{name}" data-posicion="Delantero" '
+        f'data-equipo="1" data-penaltis="{penaltis}" data-faltas-directas="{faltas_directas}" '
+        f'data-corners-colgados="{corners}"></tr>'
+    )
+
+
+def test_parse_set_piece_takers_extracts_attempt_counts():
+    html = f"<html><body><table><tbody>{_set_piece_row('mikel oyarzabal', penaltis=7)}</tbody></table></body></html>"
+    data = ff.parse_set_piece_takers(html)
+    assert data["mikel-oyarzabal"]["penalties_taken"] == 7
+    assert data["mikel-oyarzabal"]["direct_free_kicks_taken"] == 0
+
+
+def test_parse_set_piece_takers_empty_without_rows():
+    assert ff.parse_set_piece_takers("<html><body>sin nada</body></html>") == {}
+
+
+def test_find_player_set_pieces_matches_by_name(monkeypatch):
+    data = {"mikel-oyarzabal": {"penalties_taken": 7, "direct_free_kicks_taken": 0, "corners_taken": 0}}
+    monkeypatch.setattr(ff, "get_set_piece_data", lambda: data)
+    result = ff.find_player_set_pieces("Mikel Oyarzabal")
+    assert result["penalties_taken"] == 7
+
+
+def test_find_player_set_pieces_none_when_not_found(monkeypatch):
+    monkeypatch.setattr(ff, "get_set_piece_data", lambda: {})
+    assert ff.find_player_set_pieces("Nadie") is None

@@ -320,6 +320,12 @@ def rank_market(market_listings, benchmark_value=scoring.DEFAULT_VALUE_BENCHMARK
         low_confidence_fringe = scoring.is_low_confidence_fringe(
             listing.get("price"), has_real_data=raw_form is not None, titular_probability=titular_probability,
         )
+        # Lanzador de penaltis/faltas directas real (futbolfantasy.com,
+        # /analytics/balon-parado/jugadores) — evidencia empírica de
+        # intentos reales, no depende de tener configurada API-Football.
+        set_pieces = futbolfantasy.find_player_set_pieces(listing.get("name"))
+        ff_penalty_taker = bool(set_pieces and set_pieces.get("penalties_taken"))
+        free_kick_taker = bool(set_pieces and set_pieces.get("direct_free_kicks_taken"))
         futmondo_match = next_match_index.get(listing.get("futmondo_team_id")) \
             or next_match_index.get(listing.get("team"))
         futmondo_win_prob = futmondo_match.get("win_prob") if futmondo_match else None
@@ -330,6 +336,7 @@ def rank_market(market_listings, benchmark_value=scoring.DEFAULT_VALUE_BENCHMARK
         if api_available:
             extra = _score_with_api_football(api_client, standings, listing["name"], listing.get("team"))
 
+        penalty_taker = (extra or {}).get("penalty_taker", False) or ff_penalty_taker
         swing = (extra or {}).get("swing") or {"avg_goals_against_rivals": None, "avg_goals_for_rivals": None}
         score = scoring.player_score(
             position,
@@ -338,7 +345,7 @@ def rank_market(market_listings, benchmark_value=scoring.DEFAULT_VALUE_BENCHMARK
             swing,
             (extra or {}).get("congestion_count"),
             (extra or {}).get("motivation", 1.0),
-            (extra or {}).get("penalty_taker", False),
+            penalty_taker,
             (extra or {}).get("goals"),
             (extra or {}).get("assists"),
             (extra or {}).get("appearences"),
@@ -365,7 +372,8 @@ def rank_market(market_listings, benchmark_value=scoring.DEFAULT_VALUE_BENCHMARK
             "photo_url": listing.get("photo_url") or (extra or {}).get("photo_url"),
             "congestion_count": (extra or {}).get("congestion_count"),
             "card_risk": (extra or {}).get("card_risk", False),
-            "penalty_taker": (extra or {}).get("penalty_taker", False),
+            "penalty_taker": penalty_taker,
+            "free_kick_taker": free_kick_taker,
             "low_motivation": (extra or {}).get("low_motivation", False),
             "next_rival": next_rival or (extra or {}).get("next_rival"),
             "is_home": next_is_home,

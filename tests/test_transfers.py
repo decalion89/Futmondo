@@ -6,7 +6,22 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import pytest
+
 from services import transfers, cache
+
+
+@pytest.fixture(autouse=True)
+def _no_real_futbolfantasy_bulk_calls(monkeypatch):
+    """rank_market() consulta ahora dos páginas bulk de futbolfantasy.com
+    (racha de precio y lanzadores de penaltis/faltas) que, a diferencia de
+    find_player_probability, no cortan por nombre de equipo desconocido
+    antes de llamar a cache.get_or_set — así que los tests que bypasean la
+    caché (`monkeypatch.setattr(cache, "get_or_set", lambda...)`) sin esto
+    acabarían haciendo peticiones de red reales. Los tests que sí quieren
+    probar estas funciones las sobrescriben ellos mismos después."""
+    monkeypatch.setattr(transfers.futbolfantasy, "find_player_market_momentum", lambda name: None)
+    monkeypatch.setattr(transfers.futbolfantasy, "find_player_set_pieces", lambda name: None)
 
 
 def test_build_reason_flags_price_momentum():
@@ -564,3 +579,22 @@ def test_rank_market_falls_back_to_price_base_without_historical_data(tmp_path, 
     ranked, _ = transfers.rank_market([listing], client=client, position_price_index={"DEL": [5_000_000]})
     assert ranked[0]["preseason_base_source"] == "price"
     assert ranked[0]["historical_games"] is None
+
+
+def test_rank_market_flags_penalty_and_free_kick_taker_from_futbolfantasy(monkeypatch):
+    monkeypatch.setattr(
+        transfers.futbolfantasy, "find_player_set_pieces",
+        lambda name: {"penalties_taken": 7, "direct_free_kicks_taken": 0, "corners_taken": 0},
+    )
+    listing = {"name": "Lanzador", "position": "DEL", "team": "Equipo Ficticio", "price": 5_000_000}
+    ranked, _ = transfers.rank_market([listing])
+    assert ranked[0]["penalty_taker"] is True
+    assert ranked[0]["free_kick_taker"] is False
+
+
+def test_rank_market_no_taker_badges_without_set_piece_data(monkeypatch):
+    monkeypatch.setattr(transfers.futbolfantasy, "find_player_set_pieces", lambda name: None)
+    listing = {"name": "SinRol", "position": "DEL", "team": "Equipo Ficticio", "price": 5_000_000}
+    ranked, _ = transfers.rank_market([listing])
+    assert ranked[0]["penalty_taker"] is False
+    assert ranked[0]["free_kick_taker"] is False

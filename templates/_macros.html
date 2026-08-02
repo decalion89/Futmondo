@@ -69,7 +69,11 @@
     {% endif %}
 
     {% if p.get('penalty_taker') %}
-    <span class="badge badge-ok" title="Ha lanzado penaltis esta temporada">🎯 lanza penaltis</span>
+    <span class="badge badge-ok" title="Ha lanzado penaltis (futbolfantasy.com/analytics/balon-parado)">🎯 lanza penaltis</span>
+    {% endif %}
+
+    {% if p.get('free_kick_taker') %}
+    <span class="badge badge-ok" title="Ha lanzado faltas directas (futbolfantasy.com/analytics/balon-parado)">🎯 lanza faltas</span>
     {% endif %}
 
     {% if p.get('low_motivation') %}

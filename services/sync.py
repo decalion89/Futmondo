@@ -151,6 +151,13 @@ def sync_all():
                 except (ApiFootballError, TypeError, ValueError):
                     pass
 
+            # Lanzador de penaltis/faltas directas real (futbolfantasy.com,
+            # sin depender de tener configurada API-Football) — se combina
+            # con la señal de API-Football si también está disponible.
+            set_pieces = futbolfantasy.find_player_set_pieces(player["name"])
+            penalty_taker = penalty_taker or bool(set_pieces and set_pieces.get("penalties_taken"))
+            free_kick_taker = bool(set_pieces and set_pieces.get("direct_free_kicks_taken"))
+
             motivation = 1.0
             if api_available and team_id:
                 motivation = scoring.team_motivation_factor(standings.get(str(team_id)))
@@ -276,6 +283,7 @@ def sync_all():
                 "yellow_cards": yellow_cards,
                 "card_risk": card_risk,
                 "penalty_taker": penalty_taker,
+                "free_kick_taker": free_kick_taker,
                 "low_motivation": motivation < 1.0,
                 "score": score,
                 "value": value,

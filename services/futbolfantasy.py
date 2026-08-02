@@ -255,6 +255,65 @@ def get_futmondo_market_data():
     return cache.get_or_set("futbolfantasy_futmondo_market", _fetch, ttl=CACHE_TTL)
 
 
+SET_PIECES_URL = "https://www.futbolfantasy.com/analytics/balon-parado/jugadores"
+# Confirmado el 2026-08-02 con datos reales (ej. Oyarzabal 7 penaltis,
+# Muriqi 7, Gerard Moreno 3): quién ha lanzado penaltis/faltas directas de
+# verdad, evidencia empírica en vez de una jerarquía editorial adivinada —
+# y sin depender de ninguna clave de API-Football, que el usuario no
+# quiere usar.
+
+
+def parse_set_piece_takers(html):
+    """De /analytics/balon-parado/jugadores: cuántos penaltis y faltas
+    directas ha lanzado cada jugador de LaLiga — TODOS los jugadores en una
+    sola página. Indexado por slug de nombre. Los sub-campos de precisión/
+    goles (`-precisas-pct`, `-goles-pct`...) traen valores centinela raros
+    cuando el jugador no ha lanzado ninguna (ej. "1000"), así que solo se
+    usan los contadores brutos de intentos, que sí son fiables."""
+    soup = BeautifulSoup(html, "html.parser")
+    players = {}
+    for el in soup.select("tr.elemento_jugador"):
+        name = el.get("data-nombre")
+        if not name:
+            continue
+        slug = _slugify(name)
+
+        def _int(attr):
+            try:
+                return int(float(el.get(attr)))
+            except (TypeError, ValueError):
+                return 0
+
+        players[slug] = {
+            "penalties_taken": _int("data-penaltis"),
+            "direct_free_kicks_taken": _int("data-faltas-directas"),
+            "corners_taken": _int("data-corners-colgados"),
+        }
+    return players
+
+
+def get_set_piece_data():
+    """Lanzadores de penaltis/faltas/corners de TODA LaLiga, en una sola
+    petición cacheada un día completo."""
+    def _fetch():
+        try:
+            resp = requests.get(SET_PIECES_URL, headers=REQUEST_HEADERS, timeout=MARKET_REQUEST_TIMEOUT)
+            resp.raise_for_status()
+        except requests.exceptions.RequestException:
+            return {}
+        return parse_set_piece_takers(resp.text)
+
+    return cache.get_or_set("futbolfantasy_set_pieces", _fetch, ttl=CACHE_TTL)
+
+
+def find_player_set_pieces(player_name):
+    """Intentos de penalti/falta directa/corner de un jugador concreto.
+    None si no se encuentra (no si tiene 0 intentos — eso sigue
+    devolviendo el dict con ceros, para distinguir "no lo lanza" de
+    "no está en LaLiga")."""
+    return _match_by_slug(get_set_piece_data(), player_name)
+
+
 def find_player_market_momentum(player_name):
     """Racha de precio real de un jugador concreto (subida o bajada
     sostenida — mismos umbrales que scoring.price_momentum_flag, para que
