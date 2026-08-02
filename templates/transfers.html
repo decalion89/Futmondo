@@ -7,9 +7,6 @@
   {% if not futmondo_enabled %}
     <div class="banner">Configura <code>FUTMONDO_TOKEN</code>/<code>FUTMONDO_USER_ID</code> para ver el mercado real (ver README).</div>
   {% endif %}
-  {% if not api_enabled %}
-    <div class="banner">Configura <code>API_FOOTBALL_KEY</code> para poder puntuar a los jugadores del mercado y de tu plantilla.</div>
-  {% endif %}
   {% for e in errors %}
     <div class="banner">{{ e }}</div>
   {% endfor %}
