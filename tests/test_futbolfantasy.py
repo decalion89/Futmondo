@@ -101,21 +101,18 @@ def test_find_player_probability_exact_and_partial_match(monkeypatch):
 
 
 def test_find_player_probability_none_when_not_found(monkeypatch):
-    # Equipo sin datos en absoluto (no reconocido o falló la petición): sin
-    # dato real, hay que verificar a mano.
     monkeypatch.setattr(ff, "get_team_page_data", lambda team_name: _team_data())
     assert ff.find_player_probability("Nadie De Nadie", "Real Madrid") is None
 
 
-def test_find_player_probability_not_in_contention_when_team_known_but_player_absent(monkeypatch):
-    # Confirmado el 2026-08-02 con Diego Conde (portero suplente del
-    # Betis): el equipo SÍ tiene lista real, pero él no aparece en ella —
-    # es una señal real ("no está en la pelea"), no lo mismo que "sin
-    # dato".
+def test_find_player_probability_none_when_team_known_but_player_absent(monkeypatch):
+    # Probado el 2026-08-02: tratar la ausencia de la lista como señal de
+    # "no está en la pelea" dio muchos falsos positivos (jugadores caros y
+    # claramente relevantes también ausentes) — revertido, sigue siendo
+    # simplemente "sin dato", igual que un equipo no reconocido.
     lineup = {"alvaro-valles": {"probability": 70, "injured": False, "suspended": False, "unavailable": False}}
     monkeypatch.setattr(ff, "get_team_page_data", lambda team_name: _team_data(lineup=lineup))
-    result = ff.find_player_probability("Diego Conde", "Betis")
-    assert result == {"probability": None, "not_in_contention": True}
+    assert ff.find_player_probability("Diego Conde", "Betis") is None
 
 
 def test_get_team_lineup_probabilities_empty_for_unknown_team():

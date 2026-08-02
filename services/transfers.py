@@ -143,12 +143,7 @@ def build_reason(r):
     disagreement = r.get("lineup_disagreement")
 
     if r.get("low_confidence_fringe"):
-        if r.get("not_in_contention"):
-            fringe_msg = (
-                "❓ futbolfantasy.com ni siquiera lo incluye entre los jugadores con opciones reales de su "
-                "equipo — muy probablemente no sea titular, el pts/M€ que ves no es de fiar aquí"
-            )
-        elif titular_probability is not None:
+        if titular_probability is not None:
             fringe_msg = (
                 f"❓ Solo {titular_probability}% de probabilidad real de salir titular la próxima jornada "
                 "(once probable de futbolfantasy.com) — el pts/M€ que ves no es de fiar aquí"
@@ -318,7 +313,6 @@ def rank_market(market_listings, benchmark_value=scoring.DEFAULT_VALUE_BENCHMARK
         # precio para decidir si es un fichaje de relleno que no va a jugar.
         lineup_info = futbolfantasy.find_player_probability(listing.get("name"), listing.get("team"))
         titular_probability = lineup_info.get("probability") if lineup_info else None
-        not_in_contention = bool(lineup_info and lineup_info.get("not_in_contention"))
         lineup_disagreement = scoring.detect_lineup_disagreement(
             listing.get("futmondo_status") or "ok", lineup_info,
         )
@@ -328,7 +322,6 @@ def rank_market(market_listings, benchmark_value=scoring.DEFAULT_VALUE_BENCHMARK
         # jugadores reales bien valorados, solo por aritmética del precio.
         low_confidence_fringe = scoring.is_low_confidence_fringe(
             listing.get("price"), has_real_data=raw_form is not None, titular_probability=titular_probability,
-            not_in_contention=not_in_contention,
         )
         # Lanzador de penaltis/faltas directas real (futbolfantasy.com,
         # /analytics/balon-parado/jugadores) — evidencia empírica de
@@ -389,7 +382,6 @@ def rank_market(market_listings, benchmark_value=scoring.DEFAULT_VALUE_BENCHMARK
             "is_home": next_is_home,
             "win_prob": futmondo_win_prob,
             "titular_probability": titular_probability,
-            "not_in_contention": not_in_contention,
             "lineup_disagreement": lineup_disagreement,
             "score": score,
             "value": value,
@@ -447,15 +439,7 @@ def sell_candidates(squad, status_cache, top=5):
             unavailable.append(row)
         elif status == "ok":
             titular_probability = info.get("titular_probability")
-            if info.get("not_in_contention"):
-                row = {**p, **info}
-                row["reason"] = (
-                    "Sano y disponible según Futmondo, pero futbolfantasy.com ni siquiera lo incluye entre "
-                    "los jugadores con opciones reales de su equipo — puede que haya perdido el puesto sin "
-                    "estar lesionado"
-                )
-                benched_risk.append(row)
-            elif titular_probability is not None and titular_probability < scoring.LOW_TITULAR_PROBABILITY_THRESHOLD:
+            if titular_probability is not None and titular_probability < scoring.LOW_TITULAR_PROBABILITY_THRESHOLD:
                 row = {**p, **info}
                 row["reason"] = (
                     f"Sano y disponible según Futmondo, pero solo {titular_probability}% de probabilidad real "

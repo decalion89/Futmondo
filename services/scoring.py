@@ -249,7 +249,7 @@ FUTMONDO_FLOOR_PRICE = 1_000_000  # precio mínimo de la plataforma: decenas de 
 LOW_TITULAR_PROBABILITY_THRESHOLD = 20  # % de probabilidad de titularidad por debajo del cual tratamos como suplente de relleno
 
 
-def is_low_confidence_fringe(price, has_real_data, titular_probability=None, not_in_contention=False):
+def is_low_confidence_fringe(price, has_real_data, titular_probability=None):
     """Un jugador al precio MÍNIMO de la plataforma (1M€, el mismo que
     comparten decenas de suplentes/canteranos de todos los equipos) y sin
     ni un partido real jugado no es "barato y con potencial" — es "sin
@@ -262,15 +262,7 @@ def is_low_confidence_fringe(price, has_real_data, titular_probability=None, not
 
     Si tenemos la probabilidad REAL de titularidad (futbolfantasy.com, el
     once probable de esta semana), esa señal manda sobre el proxy de
-    precio — es dato directo, no una suposición a partir de cuánto cuesta.
-    `not_in_contention=True` (el jugador ni siquiera aparece en la lista de
-    futbolfantasy.com para su equipo, ver
-    services.futbolfantasy.find_player_probability) es la señal más fuerte
-    de las tres: esa web solo publica probabilidad para quienes están en
-    la pelea real por la titularidad, así que no estar ahí ya es en sí
-    mismo un "no" — no hace falta esperar a que baje de threshold."""
-    if not_in_contention:
-        return True
+    precio — es dato directo, no una suposición a partir de cuánto cuesta."""
     if titular_probability is not None:
         return titular_probability < LOW_TITULAR_PROBABILITY_THRESHOLD
     parsed = parse_price(price)
@@ -296,17 +288,11 @@ def detect_lineup_disagreement(futmondo_status, lineup_info):
     futmondo_available = futmondo_status in (None, "ok")
     ff_red_flag = bool(lineup_info.get("injured") or lineup_info.get("suspended") or lineup_info.get("unavailable"))
     probability = lineup_info.get("probability")
-    not_in_contention = bool(lineup_info.get("not_in_contention"))
 
     if futmondo_available and ff_red_flag:
         return (
             "⚠️ futbolfantasy.com ya lo marca como no disponible, pero Futmondo todavía no — "
             "podría ser una noticia muy reciente, vigílalo antes de alinearlo o pujar por él"
-        )
-    if futmondo_available and not_in_contention:
-        return (
-            "⚠️ futbolfantasy.com ni siquiera lo incluye entre los jugadores con opciones reales de su equipo — "
-            "muy probablemente no sea titular, aunque Futmondo lo tenga como disponible"
         )
     if futmondo_available and probability is not None and probability < LOW_TITULAR_PROBABILITY_THRESHOLD:
         return (

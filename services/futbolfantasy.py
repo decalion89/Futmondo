@@ -387,29 +387,20 @@ def _match_by_slug(index, player_name):
 
 
 def find_player_probability(player_name, team_name):
-    """Probabilidad de titularidad de un jugador concreto.
+    """Probabilidad de titularidad de un jugador concreto. None si no se
+    encuentra.
 
-    Devuelve None solo cuando de verdad no hay información: el equipo no
-    se reconoce o falló la petición — ahí sí hay que verificar a mano.
-
-    Si el equipo SÍ se resolvió pero el jugador no aparece en la lista de
-    futbolfantasy.com, NO es lo mismo que "no hay dato": esa web solo
-    publica probabilidad para quienes están en la pelea real por la
-    titularidad (típicamente 20-22 jugadores del primer equipo). Que
-    alguien no esté ahí es en sí mismo una señal real — normalmente un
-    suplente lejano que ni se plantean alinear (confirmado el 2026-08-02:
-    Diego Conde, portero suplente del Betis, no aparece en su ficha de
-    equipo NI en su ficha individual, mientras que el portero titular sí
-    trae probabilidad). Se devuelve `{"probability": None,
-    "not_in_contention": True}` para poder avisar de esto de forma
-    distinta a un genérico "sin dato"."""
-    lineup = get_team_page_data(team_name)["lineup"]
-    if not lineup:
-        return None
-    match = _match_by_slug(lineup, player_name)
-    if match:
-        return match
-    return {"probability": None, "not_in_contention": True}
+    Probado el 2026-08-02: intenté tratar "el equipo se resolvió pero el
+    jugador no aparece en la lista" como señal real de "no está en la
+    pelea" (funcionó para Diego Conde, suplente del Betis) — pero al
+    validarlo contra ~200 jugadores reales, jugadores caros y claramente
+    relevantes (Isco 33,8M€, Hjulmand 34,9M€, Yeremay 26,6M€) también
+    salían "ausentes", con la MISMA tasa de falsos positivos (15-32%) en
+    todos los rangos de precio, no solo en jugadores baratos. La lista de
+    futbolfantasy.com simplemente no cubre a todo el mundo — su ausencia
+    no distingue "no va a jugar" de "no está en su página". Revertido:
+    tratar la ausencia como señal fue un error, "sin dato" es lo honesto."""
+    return _match_by_slug(get_team_page_data(team_name)["lineup"], player_name)
 
 
 def find_player_injury_detail(player_name, team_name):
