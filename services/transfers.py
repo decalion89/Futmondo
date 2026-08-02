@@ -451,6 +451,23 @@ def sell_candidates(squad, status_cache, top=5):
     ranked_ok.sort(key=lambda r: r["value"])
     for r in ranked_ok[:top]:
         r["reason"] = f"Peor relación puntos/precio de tu plantilla ({r['value']} pts/M€) — ese dinero rendiría más en otro sitio"
+
+    # Precio de salida sugerido: urgente (no disponible / riesgo de
+    # banquillo) sale con un pequeño descuento para vender rápido; el resto
+    # parte de su valor real ajustado por su racha de precio, sin prisa.
+    for r in unavailable:
+        r["asking_price"] = scoring.recommended_sale_price(
+            r.get("price"), get_price_momentum(r.get("name"), []), urgent=True,
+        )
+    for r in benched_risk[:top]:
+        r["asking_price"] = scoring.recommended_sale_price(
+            r.get("price"), get_price_momentum(r.get("name"), []), urgent=True,
+        )
+    for r in ranked_ok[:top]:
+        r["asking_price"] = scoring.recommended_sale_price(
+            r.get("price"), get_price_momentum(r.get("name"), []), urgent=False,
+        )
+
     return unavailable, benched_risk[:top], ranked_ok[:top]
 
 

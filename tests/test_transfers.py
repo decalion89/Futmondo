@@ -435,6 +435,24 @@ def test_sell_candidates_worst_value_still_sorted_ascending():
     assert [p["name"] for p in worst_value] == ["Peor", "Mejor"]
 
 
+def test_sell_candidates_sets_urgent_asking_price_for_unavailable(monkeypatch):
+    monkeypatch.setattr(transfers.futbolfantasy, "find_player_market_momentum", lambda name: None)
+    squad = [_squad_player("p1", name="Lesionado")]
+    status_cache = {"p1": {"status": "lesionado"}}
+    unavailable, _, _ = transfers.sell_candidates(squad, status_cache)
+    # Sin racha de precio, solo el descuento por urgencia (-3%) sobre los 5M.
+    assert unavailable[0]["asking_price"] == 4_850_000
+
+
+def test_sell_candidates_sets_non_urgent_asking_price_for_worst_value(monkeypatch):
+    monkeypatch.setattr(transfers.futbolfantasy, "find_player_market_momentum", lambda name: None)
+    squad = [_squad_player("p1", name="MalValor")]
+    status_cache = {"p1": {"status": "ok", "value": 0.1}}
+    _, _, worst_value = transfers.sell_candidates(squad, status_cache)
+    # Sin urgencia y sin racha de precio: igual al valor actual.
+    assert worst_value[0]["asking_price"] == 5_000_000
+
+
 def test_build_transfer_plan_buys_what_fits_within_funds():
     fichar = [_candidate("Barato", 5_000_000, 4.0)]
     plan = transfers.build_transfer_plan(fichar, [], [], available_funds=10_000_000)

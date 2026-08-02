@@ -121,7 +121,8 @@
           {% else %}Clausulazo <strong>{{ "{:,.0f}".format(p.clause_estimate).replace(",", ".") }}€</strong>{% endif %}
         {% else %}Confirma el importe de clausulazo en Futmondo{% endif %}
       {% elif kind == 'vender' and p.price %}
-        Precio actual <strong>{{ "{:,.0f}".format(p.price|float).replace(",", ".") }}€</strong>
+        Precio actual {{ "{:,.0f}".format(p.price|float).replace(",", ".") }}€
+        {% if p.get('asking_price') %} · ponlo a la venta a <strong>{{ "{:,.0f}".format(p.asking_price).replace(",", ".") }}€</strong>{% endif %}
       {% endif %}
     </div>
     {% if p.get('reason') %}<div class="action-reason">{{ p.reason }}</div>{% endif %}

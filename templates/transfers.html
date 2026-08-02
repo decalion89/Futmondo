@@ -229,13 +229,14 @@
     {% if unavailable %}
       <h3>No disponibles ahora mismo</h3>
       <table>
-        <thead><tr><th>Jugador</th><th>Pos.</th><th>Estado</th><th>Motivo</th></tr></thead>
+        <thead><tr><th>Jugador</th><th>Pos.</th><th>Estado</th><th>Ponlo a la venta a</th><th>Motivo</th></tr></thead>
         <tbody>
           {% for p in unavailable %}
           <tr class="status-{{ p.status }}">
             <td data-label="Jugador">{{ p.name }}</td>
             <td data-label="Pos.">{{ p.position }}</td>
             <td data-label="Estado">{{ p.status }}</td>
+            <td data-label="Ponlo a la venta a">{{ "{:,.0f}".format(p.asking_price).replace(",", ".") + "€" if p.asking_price else '—' }}</td>
             <td data-label="Motivo">{{ p.reason or '—' }}</td>
           </tr>
           {% endfor %}
@@ -246,13 +247,14 @@
     {% if benched_risk %}
       <h3>Sanos pero probablemente ya no titulares</h3>
       <table>
-        <thead><tr><th>Jugador</th><th>Pos.</th><th>Titular</th><th>Por qué</th></tr></thead>
+        <thead><tr><th>Jugador</th><th>Pos.</th><th>Titular</th><th>Ponlo a la venta a</th><th>Por qué</th></tr></thead>
         <tbody>
           {% for p in benched_risk %}
           <tr class="status-duda">
             <td data-label="Jugador">{{ p.name }}</td>
             <td data-label="Pos.">{{ p.position }}</td>
             <td data-label="Titular">{{ p.titular_probability }}%</td>
+            <td data-label="Ponlo a la venta a">{{ "{:,.0f}".format(p.asking_price).replace(",", ".") + "€" if p.asking_price else '—' }}</td>
             <td data-label="Por qué" style="white-space:normal; min-width:14rem;">{{ p.reason or '—' }}</td>
           </tr>
           {% endfor %}
@@ -263,13 +265,14 @@
     {% if worst_value %}
       <h3>Peor relación puntos/precio en tu plantilla</h3>
       <table>
-        <thead><tr><th>Jugador</th><th>Pos.</th><th>Precio</th><th>Puntuación</th><th>Valor (pts/M€)</th><th>Por qué</th></tr></thead>
+        <thead><tr><th>Jugador</th><th>Pos.</th><th>Precio</th><th>Ponlo a la venta a</th><th>Puntuación</th><th>Valor (pts/M€)</th><th>Por qué</th></tr></thead>
         <tbody>
           {% for p in worst_value %}
           <tr>
             <td data-label="Jugador">{{ p.name }}</td>
             <td data-label="Pos.">{{ p.position }}</td>
             <td data-label="Precio">{{ "{:,.0f}".format(p.price|float).replace(",", ".") + "€" if p.price else '—' }}</td>
+            <td data-label="Ponlo a la venta a">{{ "{:,.0f}".format(p.asking_price).replace(",", ".") + "€" if p.asking_price else '—' }}</td>
             <td data-label="Puntuación">{{ p.score or '—' }}</td>
             <td data-label="Valor (pts/M€)">{{ p.value if p.value is not none else '—' }}</td>
             <td data-label="Por qué" style="white-space:normal; min-width:14rem;">{{ p.reason or '—' }}</td>

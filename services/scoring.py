@@ -560,6 +560,40 @@ def price_momentum_flag(history):
     return {"streak_days": streak_days, "cumulative_pct": round(cumulative_pct, 3)}
 
 
+SELL_URGENT_DISCOUNT = 0.03  # 3% por debajo del valor si conviene vender rápido
+SELL_MOMENTUM_ADJUST_CAP = 0.05  # tope de ajuste por racha de precio real, 5%
+
+
+def recommended_sale_price(current_price, momentum=None, urgent=False):
+    """Precio de salida sugerido al poner un jugador en venta (tú lo fijas
+    a mano en Futmondo, el sistema no lo hace por ti). Parte de su valor
+    actual real — el ancla más objetiva que existe, es lo que la propia
+    Futmondo dice hoy que vale — y lo ajusta:
+
+    - Racha de precio real (futbolfantasy.com, ver
+      services.futbolfantasy.find_player_market_momentum): si sube, hay
+      margen para pedir algo más, los compradores ya asumen que cuesta
+      más; si baja, pide menos que ayer, no del precio de hace unos días,
+      o directamente no recibirás pujas.
+    - `urgent=True` (lesionado/sancionado/riesgo de perder la titularidad):
+      mejor vender rápido que apurar el precio — sale con un descuento
+      pequeño para no espantar pujas y no quedarte con dinero parado en un
+      jugador que ya no rinde.
+
+    No es una garantía: Futmondo no publica cómo pesa el precio de salida
+    frente a las pujas que reciba después."""
+    price = parse_price(current_price)
+    if not price:
+        return None
+    adjustment = 0.0
+    if momentum:
+        pct = min(abs(momentum.get("cumulative_pct") or 0), SELL_MOMENTUM_ADJUST_CAP)
+        adjustment += pct if momentum.get("direction") == "up" else -pct
+    if urgent:
+        adjustment -= SELL_URGENT_DISCOUNT
+    return round(price * (1 + adjustment))
+
+
 def purchase_profit(current_value, buy_price):
     """Ganancia (o pérdida) de valor desde que compraste el jugador por
     mercado. `buyPrice` de Futmondo viene a 0 cuando el jugador no fue una

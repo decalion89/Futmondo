@@ -586,6 +586,36 @@ def test_purchase_profit_none_when_not_actively_bought():
     assert scoring.purchase_profit(current_value=12_000_000, buy_price=None) is None
 
 
+def test_recommended_sale_price_defaults_to_current_value_without_momentum():
+    assert scoring.recommended_sale_price(10_000_000) == 10_000_000
+
+
+def test_recommended_sale_price_none_without_price():
+    assert scoring.recommended_sale_price(None) is None
+
+
+def test_recommended_sale_price_asks_more_when_rising():
+    price = scoring.recommended_sale_price(10_000_000, momentum={"direction": "up", "cumulative_pct": 0.2})
+    assert price == 10_500_000  # tope del 5%, no el 20% completo de la racha
+
+
+def test_recommended_sale_price_asks_less_when_falling():
+    price = scoring.recommended_sale_price(10_000_000, momentum={"direction": "down", "cumulative_pct": 0.2})
+    assert price == 9_500_000
+
+
+def test_recommended_sale_price_urgent_applies_extra_discount():
+    price = scoring.recommended_sale_price(10_000_000, momentum=None, urgent=True)
+    assert price == 9_700_000  # 3% de descuento por urgencia
+
+
+def test_recommended_sale_price_combines_urgency_and_falling_momentum():
+    price = scoring.recommended_sale_price(
+        10_000_000, momentum={"direction": "down", "cumulative_pct": 0.1}, urgent=True,
+    )
+    assert price == 9_200_000  # -5% (racha) - 3% (urgencia)
+
+
 def _p(id_, position, score):
     return {"id": id_, "name": id_, "position": position, "score": score}
 
