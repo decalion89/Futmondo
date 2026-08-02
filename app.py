@@ -157,7 +157,9 @@ def market():
                             [h["price"] for h in history.get("history", [])],
                             dates=[h["date"] for h in history.get("history", [])],
                         )
-                        p["price_momentum"] = scoring.price_momentum_flag(history.get("history", []))
+                        p["price_momentum"] = transfers_service.get_price_momentum(
+                            p.get("name"), history.get("history", []),
+                        )
                     except FutmondoError:
                         p["sparkline"] = None
         except FutmondoError as e:
@@ -212,7 +214,9 @@ def transfers():
                     [h["price"] for h in history.get("history", [])],
                     dates=[h["date"] for h in history.get("history", [])],
                 )
-                r["price_momentum"] = scoring.price_momentum_flag(history.get("history", []))
+                r["price_momentum"] = transfers_service.get_price_momentum(
+                    r.get("name"), history.get("history", []),
+                )
                 r["reason"] = transfers_service.build_reason(r)
             except FutmondoError:
                 r["sparkline"] = None

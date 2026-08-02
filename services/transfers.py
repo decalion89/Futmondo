@@ -46,6 +46,19 @@ def _clean_futmondo_form(value):
     return value if value else None
 
 
+def get_price_momentum(player_name, own_history=None):
+    """Racha de precio de un jugador: prioriza futbolfantasy.com
+    (/analytics/futmondo/mercado/social — histórico ya calculado desde el
+    primer día para TODOS los jugadores, una sola petición cacheada) y
+    solo si no lo encuentra ahí cae al histórico propio de Futmondo
+    (scoring.price_momentum_flag), que necesita semanas acumulando datos
+    día a día antes de tener alguna señal real."""
+    ff_momentum = futbolfantasy.find_player_market_momentum(player_name)
+    if ff_momentum:
+        return ff_momentum
+    return scoring.price_momentum_flag(own_history or [])
+
+
 def _score_with_api_football(client, standings, name, team_name):
     """Enriquecimiento opcional vía API-Football: rating, fatiga, riesgo de
     sanción, motivación, goles/asistencias. Devuelve None si no encuentra
@@ -185,11 +198,17 @@ def build_reason(r):
         parts.append(rival_txt)
     momentum = r.get("price_momentum")
     if momentum:
-        pct = round(momentum["cumulative_pct"] * 100)
-        parts.append(
-            f"⚠️ precio subiendo {momentum['streak_days']} días seguidos (+{pct}% acumulado) — "
-            "vigila si es mejora real o solo hype de la comunidad antes de pagar de más"
-        )
+        pct = round(abs(momentum["cumulative_pct"]) * 100)
+        if momentum.get("direction") == "down":
+            parts.append(
+                f"📉 precio bajando {momentum['streak_days']} días seguidos (-{pct}% acumulado) — "
+                "podría ser buen momento para entrar antes de que se recupere"
+            )
+        else:
+            parts.append(
+                f"⚠️ precio subiendo {momentum['streak_days']} días seguidos (+{pct}% acumulado) — "
+                "vigila si es mejora real o solo hype de la comunidad antes de pagar de más"
+            )
     elif r.get("price_trend") == "up":
         parts.append("precio subiendo, podría encarecerse si esperas")
     elif r.get("price_trend") == "down":

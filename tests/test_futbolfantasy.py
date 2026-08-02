@@ -207,3 +207,61 @@ def test_find_player_transfer_rumor_matches_outgoing_player(monkeypatch):
 def test_find_player_transfer_rumor_none_when_not_leaving(monkeypatch):
     monkeypatch.setattr(ff, "get_team_page_data", lambda team_name: _team_data())
     assert ff.find_player_transfer_rumor("Nadie", "Real Madrid") is None
+
+
+def _market_row(name, valor=5_000_000, tendencia=0, diff_pct7=0):
+    """Reproduce la forma real confirmada el 2026-08-02 de una fila de
+    /analytics/futmondo/mercado/social (tr.elemento_jugador con
+    atributos data-*)."""
+    return (
+        f'<tr class="elemento_jugador" data-id="1" data-nombre="{name}" '
+        f'data-posicion="Delantero" data-equipo="1" data-valor="{valor}" '
+        f'data-tendencia="{tendencia}" data-diferencia-pct7="{diff_pct7}"></tr>'
+    )
+
+
+def test_parse_futmondo_market_extracts_value_and_trend():
+    html = f"<html><body><table><tbody>{_market_row('isaac romero', valor=11111111, tendencia=8, diff_pct7=20.5)}</tbody></table></body></html>"
+    data = ff.parse_futmondo_market(html)
+    assert data["isaac-romero"]["value"] == 11111111.0
+    assert data["isaac-romero"]["trend_streak_days"] == 8.0
+    assert data["isaac-romero"]["change_pct_7d"] == 20.5
+
+
+def test_parse_futmondo_market_empty_without_rows():
+    assert ff.parse_futmondo_market("<html><body>sin nada</body></html>") == {}
+
+
+def test_find_player_market_momentum_flags_rising_streak(monkeypatch):
+    data = {"isaac-romero": {"value": 11111111, "trend_streak_days": 8, "change_pct_7d": 20.5}}
+    monkeypatch.setattr(ff, "get_futmondo_market_data", lambda: data)
+    momentum = ff.find_player_market_momentum("Isaac Romero")
+    assert momentum["streak_days"] == 8
+    assert momentum["cumulative_pct"] == 0.205
+    assert momentum["direction"] == "up"
+
+
+def test_find_player_market_momentum_flags_falling_streak(monkeypatch):
+    data = {"jugador-bajista": {"value": 1000000, "trend_streak_days": -5, "change_pct_7d": -15}}
+    monkeypatch.setattr(ff, "get_futmondo_market_data", lambda: data)
+    momentum = ff.find_player_market_momentum("Jugador Bajista")
+    assert momentum["streak_days"] == 5
+    assert momentum["direction"] == "down"
+    assert momentum["cumulative_pct"] == -0.15
+
+
+def test_find_player_market_momentum_none_below_thresholds(monkeypatch):
+    # Racha corta (menos de BUBBLE_MIN_STREAK_DAYS) o variación pequeña
+    # (menos de BUBBLE_CUMULATIVE_THRESHOLD) no debe avisar — sería ruido.
+    data = {
+        "racha-corta": {"value": 5_000_000, "trend_streak_days": 1, "change_pct_7d": 20},
+        "variacion-pequena": {"value": 5_000_000, "trend_streak_days": 8, "change_pct_7d": 1},
+    }
+    monkeypatch.setattr(ff, "get_futmondo_market_data", lambda: data)
+    assert ff.find_player_market_momentum("Racha Corta") is None
+    assert ff.find_player_market_momentum("Variacion Pequena") is None
+
+
+def test_find_player_market_momentum_none_when_not_found(monkeypatch):
+    monkeypatch.setattr(ff, "get_futmondo_market_data", lambda: {})
+    assert ff.find_player_market_momentum("Nadie") is None

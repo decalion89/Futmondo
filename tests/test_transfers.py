@@ -23,6 +23,15 @@ def test_build_reason_falls_back_to_plain_trend_without_momentum():
     assert "subiendo" in reason.lower()
 
 
+def test_build_reason_flags_falling_price_momentum_as_buy_opportunity():
+    r = {"value": 5.0, "price_momentum": {"streak_days": 5, "cumulative_pct": -0.15, "direction": "down"}}
+    reason = transfers.build_reason(r)
+    assert "5 días" in reason
+    assert "15%" in reason
+    assert "bajando" in reason.lower()
+    assert "buen momento para entrar" in reason.lower()
+
+
 def test_build_reason_warns_before_anything_else_for_low_confidence_fringe():
     # Un jugador a precio mínimo sin datos reales no debe presumir de su
     # pts/M€ (inflado por dividir entre un precio casi nulo) como si fuera
@@ -77,6 +86,26 @@ def test_build_reason_frames_goal_opportunity_for_midfielders_and_forwards():
         reason = transfers.build_reason(r)
         assert "gol" in reason.lower()
         assert "portería a cero" not in reason.lower()
+
+
+def test_get_price_momentum_prefers_futbolfantasy_over_own_history(monkeypatch):
+    monkeypatch.setattr(
+        transfers.futbolfantasy, "find_player_market_momentum",
+        lambda name: {"streak_days": 8, "cumulative_pct": 0.2, "direction": "up"},
+    )
+    result = transfers.get_price_momentum("Isaac Romero", own_history=[])
+    assert result["streak_days"] == 8
+
+
+def test_get_price_momentum_falls_back_to_own_history_when_not_on_futbolfantasy(monkeypatch):
+    monkeypatch.setattr(transfers.futbolfantasy, "find_player_market_momentum", lambda name: None)
+    # 4 días seguidos subiendo, +15% acumulado -> supera los umbrales propios.
+    own_history = [
+        {"price": 100}, {"price": 105}, {"price": 110}, {"price": 115}, {"price": 120},
+    ]
+    result = transfers.get_price_momentum("Jugador Desconocido Para Futbolfantasy", own_history)
+    assert result is not None
+    assert result["streak_days"] == 4
 
 
 def test_build_reason_leads_with_lineup_disagreement_when_present():

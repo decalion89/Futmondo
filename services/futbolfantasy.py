@@ -20,7 +20,7 @@ import unicodedata
 import requests
 from bs4 import BeautifulSoup
 
-from services import cache
+from services import cache, scoring
 
 BASE_URL = "https://www.futbolfantasy.com/laliga/equipos"
 REQUEST_HEADERS = {
@@ -199,6 +199,84 @@ def parse_team_transfers(html):
             # Ruta equipo actual -> destino: el "otro" equipo es el último.
             outgoing = _parse_transfer_items(section, other_team_index=-1)
     return incoming, outgoing
+
+
+FUTMONDO_MARKET_URL = "https://www.futbolfantasy.com/analytics/futmondo/mercado/social"
+# Confirmado el 2026-08-02: la liga del usuario es modo "social"
+# (championshipMode en /1/userteam/information real) — esta URL es
+# específica de ese modo; la variante sin "/social" al final es para
+# ligas en modo "clásico".
+MARKET_REQUEST_TIMEOUT = 20  # esta página pesa unos 3MB (todos los jugadores de Futmondo en una tabla)
+
+
+def parse_futmondo_market(html):
+    """De /analytics/futmondo/mercado/social: histórico de precio real de
+    TODOS los jugadores de Futmondo en una sola página — valor actual y la
+    racha de días consecutivos en la misma dirección (`data-tendencia`,
+    positivo = subiendo, negativo = bajando) junto con la variación en los
+    últimos 7 días (`data-diferencia-pct7`), ya calculadas por la propia
+    web desde el primer día — a diferencia de nuestro propio histórico de
+    precio (services.futmondo.get_price_history), que tarda semanas en
+    tener señal real porque solo empieza a acumularse desde que arranca
+    esta app. Indexado por slug de nombre."""
+    soup = BeautifulSoup(html, "html.parser")
+    players = {}
+    for el in soup.select("tr.elemento_jugador"):
+        name = el.get("data-nombre")
+        if not name:
+            continue
+        slug = _slugify(name)
+
+        def _num(attr):
+            try:
+                return float(el.get(attr))
+            except (TypeError, ValueError):
+                return None
+
+        players[slug] = {
+            "value": _num("data-valor"),
+            "trend_streak_days": _num("data-tendencia"),
+            "change_pct_7d": _num("data-diferencia-pct7"),
+        }
+    return players
+
+
+def get_futmondo_market_data():
+    """Todos los jugadores de Futmondo con su racha de precio real, en una
+    sola petición cacheada un día completo."""
+    def _fetch():
+        try:
+            resp = requests.get(FUTMONDO_MARKET_URL, headers=REQUEST_HEADERS, timeout=MARKET_REQUEST_TIMEOUT)
+            resp.raise_for_status()
+        except requests.exceptions.RequestException:
+            return {}
+        return parse_futmondo_market(resp.text)
+
+    return cache.get_or_set("futbolfantasy_futmondo_market", _fetch, ttl=CACHE_TTL)
+
+
+def find_player_market_momentum(player_name):
+    """Racha de precio real de un jugador concreto (subida o bajada
+    sostenida — mismos umbrales que scoring.price_momentum_flag, para que
+    ambas fuentes avisen con el mismo criterio). None si no hay racha
+    relevante o no se encuentra al jugador en la tabla."""
+    data = _match_by_slug(get_futmondo_market_data(), player_name)
+    if not data:
+        return None
+    streak = data.get("trend_streak_days")
+    change_7d = data.get("change_pct_7d")
+    if streak is None or change_7d is None:
+        return None
+    if abs(streak) < scoring.BUBBLE_MIN_STREAK_DAYS:
+        return None
+    cumulative_pct = change_7d / 100
+    if abs(cumulative_pct) < scoring.BUBBLE_CUMULATIVE_THRESHOLD:
+        return None
+    return {
+        "streak_days": abs(int(streak)),
+        "cumulative_pct": round(cumulative_pct, 3),
+        "direction": "up" if streak > 0 else "down",
+    }
 
 
 def get_team_page_data(team_name):
