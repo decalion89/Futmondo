@@ -248,7 +248,12 @@ def transfers():
     # puja, que infla lo que "cabe" simultáneamente en varias compras).
     daily_plan = transfers_service.build_transfer_plan(
         top_fichar, top_vender, top_clausulazo, result["available_funds"],
+        benchmark_value=result["benchmark_value"],
     )
+    # Si el plan sale vacío HABIENDO candidatos, es una decisión
+    # (ninguno mejora tu plantilla lo suficiente), no un fallo — para no
+    # confundirlo con "no hay datos".
+    plan_intentionally_empty = not daily_plan and bool(top_fichar or top_clausulazo)
 
     return render_template(
         "transfers.html",
@@ -261,6 +266,7 @@ def transfers():
         top_clausulazo=top_clausulazo,
         top_vender=top_vender,
         daily_plan=daily_plan,
+        plan_intentionally_empty=plan_intentionally_empty,
         available_funds=result["available_funds"],
         errors=result["errors"],
         futmondo_enabled=futmondo_client.enabled,

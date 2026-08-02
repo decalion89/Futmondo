@@ -690,7 +690,10 @@ def scan_rival_targets(
     return candidates[:top], errors
 
 
-def build_transfer_plan(top_fichar, top_vender, top_clausulazo, available_funds):
+MIN_VALUE_IMPROVEMENT_PCT = 0.15  # un fichaje debe superar tu referencia de valor al menos un 15% para compensar el hueco de plantilla que ocupa
+
+
+def build_transfer_plan(top_fichar, top_vender, top_clausulazo, available_funds, benchmark_value=None):
     """El plan concreto de HOY: qué fichar con el dinero que tienes de
     verdad ahora mismo, y si vender a alguien de tu plantilla te permite
     llegar a un objetivo que se te queda corto de presupuesto — en vez de
@@ -701,15 +704,25 @@ def build_transfer_plan(top_fichar, top_vender, top_clausulazo, available_funds)
     Voraz por orden de valor (mismo orden en el que ya vienen fichar y
     clausulazo) — con 5-10 candidatos no hace falta una optimización
     combinatoria exhaustiva: coge lo mejor que cabe, en orden, y para lo
-    que no cabe comprueba si vendiendo al peor de tu plantilla llegarías."""
+    que no cabe comprueba si vendiendo al peor de tu plantilla llegarías.
+
+    `benchmark_value` (pts/M€ de tu propia plantilla, ver
+    scoring.squad_value_benchmark) filtra candidatos que no la superan por
+    un margen claro (MIN_VALUE_IMPROVEMENT_PCT): fichar algo apenas mejor
+    que lo que ya tienes no compensa el hueco de plantilla que ocupa ni el
+    riesgo de la operación — mejor un plan vacío ("hoy no compensa
+    fichar nada") que rellenarlo con la menos mala de las opciones flojas."""
     if available_funds is None:
         return []
 
+    candidates = [(c, "fichar") for c in top_fichar] + [(c, "clausulazo") for c in top_clausulazo]
+    if benchmark_value:
+        min_value = benchmark_value * (1 + MIN_VALUE_IMPROVEMENT_PCT)
+        candidates = [(c, kind) for c, kind in candidates if (c.get("value") or 0) >= min_value]
+    candidates.sort(key=lambda item: -(item[0].get("value") or 0))
+
     remaining = available_funds
     sellable = list(top_vender)
-
-    candidates = [(c, "fichar") for c in top_fichar] + [(c, "clausulazo") for c in top_clausulazo]
-    candidates.sort(key=lambda item: -(item[0].get("value") or 0))
 
     plan = []
     for candidate, kind in candidates:

@@ -479,6 +479,29 @@ def test_build_transfer_plan_skips_target_when_even_selling_is_not_enough():
     assert plan == []
 
 
+def test_build_transfer_plan_skips_candidates_that_barely_beat_benchmark():
+    # Con benchmark_value=1.0, un candidato debe superar 1.15 (margen del
+    # 15%) para colar en el plan — 1.05 no compensa el hueco de plantilla.
+    fichar = [_candidate("ApenasMejor", 5_000_000, 1.05)]
+    plan = transfers.build_transfer_plan(fichar, [], [], available_funds=10_000_000, benchmark_value=1.0)
+    assert plan == []
+
+
+def test_build_transfer_plan_includes_candidates_clearly_above_benchmark():
+    fichar = [_candidate("ClaramenteMejor", 5_000_000, 1.2)]
+    plan = transfers.build_transfer_plan(fichar, [], [], available_funds=10_000_000, benchmark_value=1.0)
+    assert len(plan) == 1
+    assert plan[0]["player"]["name"] == "ClaramenteMejor"
+
+
+def test_build_transfer_plan_ignores_benchmark_when_not_provided():
+    # Compatibilidad: sin benchmark_value (None, el valor por defecto), se
+    # mantiene el comportamiento de siempre, sin filtrar por umbral.
+    fichar = [_candidate("SinReferencia", 5_000_000, 0.01)]
+    plan = transfers.build_transfer_plan(fichar, [], [], available_funds=10_000_000)
+    assert len(plan) == 1
+
+
 def test_build_transfer_plan_prioritizes_by_value_across_fichar_and_clausulazo():
     fichar = [_candidate("MenosValor", 1_000_000, 2.0)]
     clausulazo = [{"name": "MasValor", "clause_estimate": 1_000_000, "value": 8.0}]

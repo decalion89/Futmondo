@@ -43,11 +43,14 @@
     </div>
     {% endfor %}
   </div>
+  {% elif plan_intentionally_empty %}
+  <div class="section-title"><h2>📋 Tu plan de hoy</h2></div>
+  <div class="banner">✋ Hoy no compensa fichar a nadie: ninguno de los candidatos mejora claramente lo que ya tienes en plantilla (necesita superar tu propia relación puntos/precio en al menos un 15%). Mejor esperar a que el mercado renueve mañana que fichar la menos mala de las opciones flojas.</div>
   {% endif %}
 
   <div class="section-title"><h2>🎯 Más opciones</h2></div>
   <p class="hint">
-    {% if daily_plan %}El resto de candidatos que no entraron en el plan de hoy (o que sí, con más detalle) — por si quieres desviarte del plan a propósito.{% else %}Las mejores opciones ahora mismo, con el motivo de cada una — esto es lo que miraría el sistema si tuviera que decidir.{% endif %}
+    {% if daily_plan or plan_intentionally_empty %}El resto de candidatos que no entraron en el plan de hoy (o que sí, con más detalle) — por si quieres desviarte del plan a propósito.{% else %}Las mejores opciones ahora mismo, con el motivo de cada una — esto es lo que miraría el sistema si tuviera que decidir.{% endif %}
     La ejecución (pujar, vender) sigue siendo tuya.
     {% if real_budget_cap is not none %}No puedes pujar por encima de <strong>{{ "{:,.0f}".format(real_budget_cap).replace(",", ".") }}€</strong> en ningún jugador, por muy rentable que parezca (tope real de tu liga).{% endif %}
   </p>
