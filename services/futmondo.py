@@ -512,17 +512,32 @@ def get_lastseasons_prior(client, player_id):
 
 def normalize_pressroom(raw):
     """Actividad reciente del mercado de tu liga (de /1/locker/pressroom):
-    quién ha puesto a quién en venta, a qué precio, y cuántas pujas lleva."""
+    quién ha COMPRADO a quién, a qué precio final, y el histórico COMPLETO
+    de pujas — incluidas las perdedoras, con quién pujó y cuánto.
+
+    Corregido el 2026-08-02 contra datos reales: el campo del comprador es
+    `_buyer`, no `_seller` (ese campo no existe en la respuesta real —
+    salía siempre vacío en producción, de ahí la columna "Vendedor" casi
+    siempre en blanco). Además, `bids` trae el detalle completo de cada
+    puja (`u.name` quién pujó, `bid` cuánto) — inteligencia competitiva
+    real: se ve cuánto estaba dispuesto a pagar un rival por un jugador
+    aunque no ganara la puja, algo que Futmondo nunca muestra mientras la
+    puja sigue abierta."""
     news = (raw or {}).get("news") or []
     items = []
     for n in news:
+        bids = [
+            {"bidder": (b.get("u") or {}).get("name"), "amount": b.get("bid")}
+            for b in (n.get("bids") or [])
+        ]
         items.append({
             "player_name": (n.get("_player") or {}).get("name"),
             "player_team": (n.get("_playerTeam") or {}).get("name"),
-            "seller_name": (n.get("_seller") or {}).get("name"),
+            "buyer_name": (n.get("_buyer") or {}).get("name"),
             "price": n.get("price"),
             "created": n.get("created"),
-            "bids": len(n.get("bids") or []),
+            "bids": bids,
+            "bid_count": len(bids),
         })
     items.sort(key=lambda i: i.get("created") or "", reverse=True)
     return items

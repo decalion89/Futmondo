@@ -53,17 +53,23 @@
 
   {% if activity %}
   <div class="section-title"><h2>Actividad reciente del mercado</h2></div>
-  <p class="hint">Quién de tus rivales ha puesto a quién en venta — para reaccionar rápido, no enterarte tarde.</p>
+  <p class="hint">Quién de tus rivales ha comprado a quién — y cuánto llegaron a pujar los demás, aunque no ganaran. Te dice cuánto está dispuesto a pagar cada rival por un perfil de jugador.</p>
   <table>
-    <thead><tr><th>Jugador</th><th>Equipo</th><th>Vendedor</th><th>Precio</th><th>Pujas</th><th>Cuándo</th></tr></thead>
+    <thead><tr><th>Jugador</th><th>Equipo</th><th>Comprador</th><th>Precio final</th><th>Otras pujas</th><th>Cuándo</th></tr></thead>
     <tbody>
       {% for a in activity %}
       <tr>
         <td data-label="Jugador">{{ a.player_name or '—' }}</td>
         <td data-label="Equipo">{{ a.player_team or '—' }}</td>
-        <td data-label="Vendedor">{{ a.seller_name or '—' }}</td>
-        <td data-label="Precio">{{ "{:,.0f}".format(a.price).replace(",", ".") if a.price else '—' }}€</td>
-        <td data-label="Pujas">{{ a.bids }}</td>
+        <td data-label="Comprador">{{ a.buyer_name or '—' }}</td>
+        <td data-label="Precio final">{{ "{:,.0f}".format(a.price).replace(",", ".") if a.price else '—' }}€</td>
+        <td data-label="Otras pujas">
+          {% if a.bids %}
+            {% for b in a.bids %}
+              {{ b.bidder or '—' }}: {{ "{:,.0f}".format(b.amount).replace(",", ".") if b.amount else '—' }}€{% if not loop.last %}<br>{% endif %}
+            {% endfor %}
+          {% else %}—{% endif %}
+        </td>
         <td data-label="Cuándo"><span class="timeago" data-when="{{ a.created }}">{{ a.created }}</span></td>
       </tr>
       {% endfor %}

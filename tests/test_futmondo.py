@@ -278,25 +278,32 @@ def test_normalize_league_teams_empty_without_data():
 
 
 def test_normalize_pressroom_maps_and_sorts_by_recent_first():
+    # Forma real confirmada el 2026-08-02: el comprador viene en `_buyer`
+    # (no `_seller`, que no existe en la respuesta real), y `bids` trae el
+    # detalle completo (quién pujó y cuánto), no solo un contador.
     raw = {
         "news": [
             {
                 "_player": {"name": "Sergio M."}, "_playerTeam": {"name": "Racing"},
-                "_seller": {"name": "R.C.G."}, "price": 640000, "created": "2026-08-01T05:00:00.000Z",
+                "_buyer": {"name": "R.C.G."}, "price": 640000, "created": "2026-08-01T05:00:00.000Z",
                 "bids": [],
             },
             {
                 "_player": {"name": "Isaac"}, "_playerTeam": {"name": "Sevilla"},
-                "_seller": {"name": "Snoopy"}, "price": 2000000, "created": "2026-08-02T05:00:00.000Z",
-                "bids": [{"x": 1}, {"x": 2}],
+                "_buyer": {"name": "Snoopy"}, "price": 2000000, "created": "2026-08-02T05:00:00.000Z",
+                "bids": [
+                    {"u": {"name": "DRINK NEWTEAM"}, "bid": 1800000},
+                    {"u": {"name": "R.C.G."}, "bid": 1500000},
+                ],
             },
         ]
     }
     items = futmondo.normalize_pressroom(raw)
     assert len(items) == 2
     assert items[0]["player_name"] == "Isaac"  # más reciente primero
-    assert items[0]["bids"] == 2
-    assert items[1]["seller_name"] == "R.C.G."
+    assert items[0]["bid_count"] == 2
+    assert items[0]["bids"][0] == {"bidder": "DRINK NEWTEAM", "amount": 1800000}
+    assert items[1]["buyer_name"] == "R.C.G."
 
 
 def test_normalize_pressroom_empty_without_data():
