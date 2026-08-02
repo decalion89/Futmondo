@@ -117,7 +117,9 @@
         {% if p.get('futmondo_expiration') %} · cierra en <span class="countdown" data-expires="{{ p.futmondo_expiration }}">calculando…</span>{% endif %}
       {% elif kind == 'clausulazo' %}
         {% if p.clause_estimate is not none %}
-          {% if p.clause_is_estimate %}Clausulazo estimado <strong>~{{ "{:,.0f}".format(p.clause_estimate).replace(",", ".") }}€</strong>
+          {% if p.clause_is_estimate %}
+            ⚠️ Sin cláusula activa todavía — puede que Futmondo no te deje pagarla aún
+            (estimado si se activa: <strong>~{{ "{:,.0f}".format(p.clause_estimate).replace(",", ".") }}€</strong>)
           {% else %}Clausulazo <strong>{{ "{:,.0f}".format(p.clause_estimate).replace(",", ".") }}€</strong>{% endif %}
         {% else %}Confirma el importe de clausulazo en Futmondo{% endif %}
       {% elif kind == 'vender' and p.price %}
